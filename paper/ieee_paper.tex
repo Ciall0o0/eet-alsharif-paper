@@ -54,12 +54,13 @@ a PPO-trained recurrent policy keeps the fleet balanced. Our agent
 uses a shared GRU encoder over an observation that explicitly encodes
 each elevator's car-call distribution---the only destination
 information observable in hall-call-only operation---and is
-regularized by an auxiliary zone-level destination-prediction head
-that exploits the strong temporal prior of building traffic. On an
+regularized by an auxiliary next-event zone-prediction head
+that exploits the strong temporal regularity of building demand. On an
 independent 12-hour evaluation at 2.5$\times$ peak rates, the
-proposed agent improves mean per-episode reward 6.3$\times$ over the
-best rule baseline ($t = 13.05$, $p < 2\times10^{-20}$, Cohen's
-$d = 3.12$; 3 seeds $\times$ 12 episodes), and Pareto-dominates both
+proposed agent improves mean per-episode reward 5.1$\times$ over the best
+rule baseline (SD-nearest; pooled Welch $t(13.7) = 8.11$,
+$p = 1.4\times10^{-6}$, Cohen's $d = 3.01$; 3 seeds $\times$ 12
+episodes, paired per-seed tests all $p < 0.0001$), and Pareto-dominates both
 heuristics on passengers served and average waiting time. We further
 establish two deployment-aware training principles: restricting the
 training distribution to peak-demand segments improves downstream
@@ -73,7 +74,7 @@ structure remains equally predictable.
 
 \begin{IEEEkeywords}
 Elevator group control, reinforcement learning, auxiliary task
-learning, destination prediction, rule-collapse regime, GRU, PPO
+learning, next-event prediction, rule-collapse regime, GRU, PPO
 \end{IEEEkeywords}
 
 % =============================================================
@@ -121,16 +122,10 @@ objective with self-supervised prediction tasks. UNREAL demonstrated
 that adding pixel-control and reward-prediction tasks to A3C improved
 Atari performance, with the key mechanism being gradient sharing
 through a common representation layer. This principle extends
-naturally to EGCS, where the auxiliary task is destination prediction
-from hall-call sequences.
+naturally to EGCS: we predict the zone in which the \emph{next}
+hall-call event will occur, a self-supervised temporal task
+solvable from the hall-call stream alone.
 
-Our work also connects to the learning using privileged information
-(LUPI) paradigm~\cite{vapnik2015learning}, where additional features
-available during training are used to improve a model that operates
-without those features at test time. In our setting, the ground-truth
-destination of each passenger is available from the simulator during
-training (privileged information), but the dispatch policy must
-operate on hall-call observations alone during deployment.
 
 The contributions of this work are threefold:
 \begin{enumerate}
@@ -141,8 +136,8 @@ The contributions of this work are threefold:
     accumulating empty travel---whereas a PPO-trained GRU policy with
     an explicit car-call distribution encoding improves mean reward
     5.1--6.3$\times$ over either rule and Pareto-dominates both on
-    passengers served and average waiting time ($t = 13.05$,
-    $p < 2\times10^{-20}$, Cohen's $d = 3.12$).
+    passengers served and average waiting time (pooled Welch
+    $t(13.7) = 8.11$, $p = 1.4\times10^{-6}$, Cohen's $d = 3.01$).
     \item \textbf{Deployment-aware training distribution.} Focusing
     training on the peak-demand segments of the daily schedule (the
     first six hours) improves downstream peak evaluation 5$\times$
@@ -154,8 +149,8 @@ The contributions of this work are threefold:
     \item \textbf{Feature--auxiliary synergy.} The car-call
     distribution encoding---the only destination information
     observable in hall-call-only operation---is the necessary
-    carrier for the zone-level auxiliary destination-prediction
-    task: without it the auxiliary head degrades performance
+    carrier for the next-event zone-prediction auxiliary task:
+    without it the auxiliary head degrades performance
     2.5$\times$ below the no-auxiliary baseline, while together they
     outperform either component alone. We also verify that the zone
     prior transfers to a 20-floor building, where origin--
@@ -216,12 +211,12 @@ representation layer---is motivated by the observation that
 representations useful for auxiliary tasks (e.g., predicting future
 rewards or pixel changes) are also beneficial for the main policy
 task. Knowledge distillation~\cite{hinton2015distilling} transfers
-knowledge from a teacher model to a student model; our auxiliary
-destination head can be viewed as an in-network distillation of
-privileged destination information into the shared encoder. The LUPI
-framework~\cite{vapnik2015learning} formalizes this regime where
-privileged information is available only during training and can
-accelerate convergence and improve generalization.
+knowledge from a teacher model to a student model; our auxiliary head
+shares this mechanism structurally, but the label it predicts (the
+next event's zone) is \emph{not} privileged---it is a future
+outcome of the observed process, and the head is a form of
+self-supervised temporal prediction rather than privileged-feature
+distillation.
 
 \subsection{Recurrent Architectures for Temporal Modeling}
 
@@ -394,38 +389,44 @@ the auxiliary destination-prediction task beneficial; disabling it
 auxiliary head from an asset into a liability (2.5$\times$ worse
 than the no-auxiliary baseline under peak load).
 
-\subsection{Zone-Level Auxiliary Destination Prediction}\subsection{Theoretical Support for the Auxiliary Objective}
+\subsection{Next-Event Zone Prediction as the Auxiliary Task}
+
+% ============
+\subsection{Theoretical Support for the Auxiliary Objective}
 
 Three complementary perspectives motivate why auxiliary gradients
 through the shared encoder improve the dispatch policy. We state
 them as working intuitions grounded in established results, not as
 new theorems.
 
-\textbf{(1) Privileged-information distillation (LUPI).} In the
-learning-using-privileged-information framework
-of~\cite{vapnik2015learning}, a learner operating on features $x$
-can be accelerated by a teacher that sees richer features $x^*$
-during training; the teacher's role is to steer the student toward a
-better inductive bias. Here $x$ is the hall-call observation
-sequence and $x^*$ includes the passenger destinations revealed by
-the simulator. The destination head plays the role of the teacher
-head: its cross-entropy loss is minimized only when the shared hidden
-state $h_t$ carries enough information to determine $d_t^*$,
-thereby injecting destination structure into $h_t$ without ever
-exposing it through the observation channel.
+\textbf{(1) Temporal prediction shapes a dynamics-aware
+representation.} The auxiliary label is the zone of the next
+hall-call event---a quantity that is a deterministic function of the
+traffic generator's event schedule and therefore a genuine future
+outcome of the process the policy must act upon. Minimizing
+$\mathcal{L}_{\text{aux}}$ forces the hidden state $h_t$ to
+summarize the information needed to anticipate where demand will
+arise next (which floors are accumulating calls, how fast the fleet
+is clearing them, and the time-of-day prior). This is the same
+``predict the future state change'' principle behind UNREAL's pixel
+control~\\cite{jaderberg2017unreal}, applied to the spatial
+evolution of demand rather than to raw pixels. The predicted zone is
+not a privileged destination: it is inferred from the observable
+hall-call stream, so the encoder learns dynamics rather than
+distilling hidden features.
 
 \textbf{(2) Representation-shaping as implicit regularization.}
-Adding $\mathcal{L}_{\text{dest}}$ to the PPO objective is
+Adding $\mathcal{L}_{\text{aux}}$ to the PPO objective is
 equivalent to a regularizer on the shared encoder parameters
 $\theta_{\text{enc}}$:
 \begin{equation}
 \theta_{\text{enc}}^* = \arg\min_\theta\;
 \underbrace{\mathcal{L}_{\text{PPO}}}_{\text{task}} +
-\lambda_{\text{dest}}\,
-\underbrace{\mathcal{L}_{\text{dest}}}_{\text{regularizer}}.
+\lambda_{\text{aux}}\,
+\underbrace{\mathcal{L}_{\text{aux}}}_{\text{regularizer}}.
 \end{equation}
-Because the destination task is stationary (the OD matrix is fixed
-per traffic mode), its gradients are far less noisy than the
+Because the auxiliary task is stationary (the traffic schedule
+and OD structure are fixed), its gradients are far less noisy than the
 policy-gradient estimates, providing a low-variance signal that
 stabilizes the representation---an effect analogous to
 multi-task feature sharing in
@@ -435,20 +436,20 @@ argument for auxiliary tasks in general.
 \textbf{(3) Mutual-information view.} The cross-entropy loss is an
 upper bound on the conditional entropy $H(d_t \mid h_t)$:
 \begin{equation}
-\mathcal{L}_{\text{dest}} \geq H(d_t \mid h_t) =
-H(d_t) - I(h_t; d_t),
+\mathcal{L}_{\text{aux}} \geq H(z_t \mid h_t) =
+H(z_t) - I(h_t; z_t),
 \end{equation}
-so minimizing $\mathcal{L}_{\text{dest}}$ encourages the shared
-encoder to maximize $I(h_t; d_t)$, the mutual information between
-the hidden state and the destination. Since the dispatch decision
-must anticipate where the passenger will travel, a representation
-with larger $I(h_t; d_t)$ is better aligned with the decision-relevant
-latent structure of the POMDP. Empirically, the zone head
-reaches top-1 accuracy 0.49--0.53 against 0.33 random chance (and
-0.50 majority-class), confirming that $I(h_t; z_t)$ grows
-substantially during training.
+so minimizing $\mathcal{L}_{\text{aux}}$ encourages the shared
+encoder to maximize $I(h_t; z_t)$, the mutual information between
+the hidden state and the zone of the next event. Since the dispatch
+decision must anticipate where demand will arise, a representation
+with larger $I(h_t; z_t)$ is better aligned with the
+decision-relevant latent structure of the POMDP. Empirically, the
+zone head reaches training accuracy 0.70--0.73 against 0.48 random
+chance (all-day event distribution), confirming that
+$I(h_t; z_t)$ grows substantially during training.
 
-\subsection{Zone-Level Auxiliary Destination Prediction}
+\subsection{Next-Event Zone Prediction as the Auxiliary Task}
 
 \textbf{Why not floor-level prediction?} The hall-call observation
 contains the call floor and elevator states but no destination
@@ -468,9 +469,14 @@ floors, zones carry a strong temporal prior that is recoverable from
 the hall-call stream: in our Al-Sharif OD matrices, 63\% of
 passengers departing from the mid or high zone travel to the low
 zone (downward movement), while low-zone departures are nearly
-uniform over destinations. The auxiliary label $z_t^*$ is the zone
-of the active destination at step $t$, converted to a 3-class
-one-hot. The auxiliary loss is a cross-entropy:
+uniform over destinations. The auxiliary label $z_t^*$ is the zone of the \emph{next}
+hall-call event to occur after step $t$, converted to a 3-class
+one-hot. This is a self-supervised temporal prediction: the encoder
+must anticipate where demand will arise next from the current
+fleet state and recent event history. It is not destination
+prediction---destinations remain unobservable until boarding---but
+it makes the encoder predict the spatial evolution of demand, which
+directly informs positioning decisions. The auxiliary loss is a cross-entropy:
 
 \begin{equation}
 \mathcal{L}_{\text{aux}} = -\mathbb{E}_t\left[
@@ -639,7 +645,7 @@ evaluation at 2.5$\times$ arrival rates (the regime where both rule
 baselines collapse). The proposed agent (GRU+PPO+Zone-Aux, 122-dim)
 improves mean per-episode reward by 6.3$\times$ over the best rule
 baseline (SD-nearest) and 5.1$\times$ over SD-ETA, with a large
-effect size ($d = 3.12$). Crucially, the improvement is not a
+effect size ($d = 3.01$). Crucially, the improvement is not a
 reward-shaping artifact: the learned policy also serves
 2.4--4.0$\times$ more passengers than either heuristic while
 maintaining the \emph{shortest} average waiting time---it
@@ -670,7 +676,8 @@ MIX & $-5{,}548 \pm 2{,}352$ & 2{,}680 & 56.3 \\
 \end{table}
 
 The Zone-Aux reward is the 3-seed pooled mean
-($n = 36$); per-seed values are $-4{,}922 \pm 1{,}398$ (seed 42),
+($n = 36$, rewards scaled by the environment's $0.01$
+reward scale); per-seed values are $-4{,}922 \pm 1{,}398$ (seed 42),
 $-8{,}451 \pm 2{,}323$ (360), and $-1{,}868 \pm 1{,}039$ (712).
 The variance across seeds is substantial---a reminder that
 single-seed RL comparisons are unreliable---yet every seed
@@ -679,11 +686,13 @@ individually outperforms both rule baselines by at least 3.8$\times$.
 \subsection{Statistical Significance}
 
 With 36 independent episodes for the proposed agent and 12 for each
-rule, the improvement is highly significant: $t = 13.05$,
-$p < 2\times10^{-20}$ (independent two-sample $t$-test), with
-Cohen's $d = 3.12$---far above the $d = 0.8$ ``large effect''
-threshold. Per-seed paired tests are individually significant
-($p < 0.0001$ for all three seeds). The independent-evaluation
+rule, the improvement is highly significant: pooled Welch
+$t(13.7) = 8.11$, $p = 1.4\times10^{-6}$, with Cohen's
+$d = 3.01$---far above the $d = 0.8$ ``large effect''
+threshold. Per-seed paired tests (same held-out episode seeds)
+are individually significant ($p < 0.0001$ for all three
+seeds), and the seed-level test with $n = 3$ also reaches
+$p = 0.005$. The independent-evaluation
 protocol removes both traffic-generation seed selection and
 training-validation cherry-picking from the comparison.
 
@@ -798,16 +807,20 @@ The MIX agent (trained with per-episode arrival rates sampled from
 1.5--3.0$\times$) matches the fixed-density agent inside the
 training envelope (2.5$\times$: $-5{,}548$ vs.~$-4{,}922$, within
 noise) and never collapses in the comfort zone. However, it
-extrapolates markedly worse at 3.0$\times$ ($-11{,}571$ vs.
-$-4{,}190$; $p = 0.02$), serving 21\% fewer passengers with longer
-waits. Exposure to low-density segments teaches a more relaxed
-dispatch style that is insufficiently aggressive under extreme
-overload. A focused single-density curriculum is therefore
+extrapolates markedly worse at 3.0$\times$: it serves 21\% fewer
+passengers (2{,}349 vs.~2{,}973; Welch $p = 0.038$) with longer
+waits (58.3 s vs.~47.0 s; $p = 0.0006$). The reward gap
+($-11{,}571$ vs.~$-4{,}190$) is significant under the $t$-test
+($p = 0.044$) but not under Mann--Whitney ($p = 0.14$) because
+per-episode rewards are heavy-tailed; the service-quality
+differences are unambiguous. Exposure to low-density segments
+teaches a more relaxed dispatch style that is insufficiently
+aggressive under extreme overload. A focused single-density curriculum is therefore
 preferable to a broad mixed curriculum for peak-regime dispatch.
 
 \subsection{Per-Mode Breakdown}
 
-Table~\ref{tab:per_mode} shows the 90-minute pure-mode evaluation
+The 90-minute pure-mode evaluation
 (5 episodes per mode per seed, 1$\times$ arrival rates; sustained
 8-hour pure-mode blocks overload the fleet and saturate the event
 cap, distorting rewards). The zone-augmented agent improves
@@ -818,23 +831,7 @@ per-mode differences are \emph{not individually significant}
 (overall $p = 0.41$); we report them only as a qualitative breakdown
 of where the auxiliary prior is most useful.
 
-\begin{table}[t]
-\centering
-\caption{Per-mode evaluation (90-min pure mode, 1$\times$ rates):
-mean reward over 15 episodes (3 seeds $\times$ 5 episodes).}
-\label{tab:per_mode}
-\begin{tabular}{@{}lcc@{}}
-\toprule
-Mode & GRU+PPO & Zone-Aux \\
-\midrule
-Up-peak    & $-753$ & $-1{,}041$ \\
-Down-peak  & $-7{,}001$ & $\mathbf{-3{,}429}$ \\
-Lunch-peak & $-1{,}670$ & $-3{,}243$ \\
-Interfloor & $-4{,}941$ & $\mathbf{-3{,}637}$ \\
-Off-peak   & $-365$ & $-463$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+
 
 \subsection{Generalization to a 20-Floor Building}
 
@@ -864,12 +861,12 @@ reward prediction) degraded the policy. This confirms the structural
 impossibility of fine-grained destination inference from hall-call
 observations.
 
-\textbf{Zone-level prediction learns.} The 3-class zone head reaches
-top-1 accuracy 0.49 vs.~0.33 random chance (majority-class baseline
-0.50), i.e. it recovers the dominant spatial pattern: mid/high-zone
-departures travel to the low zone. The auxiliary loss decreases
-steadily and, at $\lambda_{\text{aux}} = 0.3$, the representation
-benefits the dispatch policy.
+\textbf{Zone-level prediction learns.} The 3-class zone head
+reaches training accuracy 0.70--0.73 against a 0.48
+majority-class baseline (all-day event distribution), i.e. it recovers the temporal--spatial
+structure of demand. The auxiliary loss decreases steadily and, at
+$\lambda_{\text{aux}} = 0.3$, the representation benefits the
+dispatch policy.
 
 \textbf{Lambda ablation.} We swept the auxiliary weight
 (Table~\ref{tab:lambda}): $\lambda = 0.3$ is optimal
@@ -988,7 +985,14 @@ rather than measured power draw; energy-aware scheduling
 remains an active direction~\cite{maleki2023energy}, and the
 energy--waiting-time trade-off
 identified in the comfort zone (rules burn energy for short waits)
-is indicative rather than absolute. Finally, the per-mode breakdown
+is indicative rather than absolute. Fifth, the traffic is generated
+synthetically with the Al-Sharif~\cite{alsharif2020traffic} OD
+methodology rather than measured from a real building; the zone
+prior, while stable across seeds, reflects the OD model's structure
+and may differ in buildings with different tenant mixes---an
+empirical validation with real hall-call data (as in
+the VU Amsterdam study~\cite{vu2025rl}) is a natural next step.
+Finally, the per-mode breakdown
 is qualitative only ($p = 0.41$ overall); a mode-conditioned
 auxiliary weight may sharpen it.
 
@@ -1000,8 +1004,8 @@ control delivers its value exactly where classical rules fail:
 under sustained peak demand, where SD-nearest and SD-ETA heuristics
 collapse but a PPO-trained GRU policy keeps the fleet balanced,
 serving 2.4--4.0$\times$ more passengers with shorter waits and
-6.3$\times$ better reward ($t = 13.05$, $p < 2\times10^{-20}$,
-$d = 3.12$). Two design principles emerged. First, the observation
+5.1$\times$ better reward over the best rule (pooled Welch
+$t(13.7) = 8.11$, $p = 1.4\times10^{-6}$, $d = 3.01$). Two design principles emerged. First, the observation
 must explicitly encode each car's car-call distribution---the only
 destination information available in hall-call-only operation---and
 this feature is the necessary carrier for the auxiliary
@@ -1100,11 +1104,6 @@ destination control systems,'' in \textit{Elevator Technology} 2022.
 Y.~Chen et~al., ``Real-time matrix iterative optimization for
 reservation-based elevator systems,'' \textit{J. Building Eng.},
 2021.
-
-\bibitem{vapnik2015learning}
-V.~Vapnik and R.~Izmailov, ``Learning using privileged information:
-similarity control and knowledge transfer,'' \textit{J. Machine
-Learning Research}, vol.~16, pp.~2023--2049, 2015.
 
 \bibitem{hinton2015distilling}
 G.~Hinton, O.~Vinyals, and J.~Dean, ``Distilling the knowledge in a
