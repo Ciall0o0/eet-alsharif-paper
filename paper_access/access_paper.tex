@@ -650,6 +650,17 @@ distorting rewards).
 
 \subsection{Main Results: the Rule-Collapse Regime}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figs/fig_main_results_ieee.pdf}
+\caption{Independent 12-hour evaluation at 2.5$\times$ peak arrival
+rates (mean per-episode reward $\pm$ SE). Rule baselines (gray)
+collapse; the proposed Zone-Aux agent (red) achieves $-5{,}080 \pm
+1{,}090$ (3-seed pooled, $n=36$) with the shortest waiting time.}
+\label{fig:main_results}
+\end{figure}
+
+
 Table~\ref{tab:main_results} reports the independent 12-hour
 evaluation at 2.5$\times$ arrival rates (the regime where both rule
 baselines collapse). The proposed agent (GRU+PPO+Zone-Aux, 122-dim)
@@ -776,6 +787,16 @@ Full 12h (3{,}500 ev) & $-32{,}187 \pm 3{,}180$ & $-36{,}172 \pm 3{,}031$ \\
 \end{table}
 
 \subsection{Feature--Auxiliary Synergy}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\columnwidth]{figs/fig_synergy_ieee.pdf}
+\caption{Feature $\times$ auxiliary cross-ablation (2.5$\times$,
+seed 42): the next-event zone head helps only when the observation
+carries the car-call distribution (122-dim).}
+\label{fig:synergy}
+\end{figure}
+
 
 Table~\ref{tab:synergy} cross-tabulates the two design choices: the
 car-call distribution feature (122-dim) and the zone auxiliary head.
