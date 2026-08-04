@@ -15,7 +15,7 @@ At **2.5× peak arrival rates** (the regime where rule-based dispatch collapses)
 | Zone-Aux-92 | −14,861 ± 2,097 | — | — |
 | **Zone-Aux (proposed)** | **−5,080 ± 1,090** | **2,760** | **46.7** |
 
-**6.3× over the best rule, t(35)=13.05, p<2×10⁻²⁰, Cohen's d=3.12** (3 seeds × 12 held-out episodes). The learned policy Pareto-dominates both heuristics on passengers served and waiting time.
+**5.1× over the best rule (SD-nearest); pooled Welch t(13.7)=8.11, p=1.4×10⁻⁶, Cohen's d=3.01**; per-seed paired tests all p<0.0001 (3 seeds × 12 held-out episodes). The learned policy Pareto-dominates both heuristics on passengers served and waiting time.
 
 Key findings reproduced by this repo:
 1. **RL value is in the rule-collapse regime** — rules win at 1.5–2.0×, collapse at 2.5×+.
