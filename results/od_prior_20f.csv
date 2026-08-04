@@ -1,0 +1,4 @@
+Building,Mode,Zones,ArgmaxPrior,Chance,FloorR
+10F,height,3,0.512,0.333,-0.31
+20F,height,3,0.545,0.333,-0.275
+20F,functional,4,0.471,0.25,-0.275
