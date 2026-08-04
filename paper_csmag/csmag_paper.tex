@@ -315,9 +315,6 @@ the auxiliary destination-prediction task beneficial; disabling it
 auxiliary head from an asset into a liability (2.5$\times$ worse
 than the no-auxiliary baseline under peak load).
 
-\subsection{Next-Event Zone Prediction as the Auxiliary Task}
-
-% ============
 \subsection{Theoretical Support for the Auxiliary Objective}
 
 Three complementary views motivate the auxiliary objective. First,
@@ -336,7 +333,7 @@ $\mathcal{L}_{\text{aux}} \geq H(z_t \mid h_t) = H(z_t) -
 I(h_t; z_t)$, so minimizing it grows the mutual information between
 the hidden state and the next event's zone---exactly the
 decision-relevant latent structure for positioning decisions.
-\subsection{Next-Event Zone Prediction as the Auxiliary Task}
+\subsection{Design Choices: Floor-Level vs.\ Zone-Level Prediction}
 
 \textbf{Why not floor-level prediction?} The hall-call observation
 contains the call floor and elevator states but no destination
@@ -391,13 +388,7 @@ observation space as the baseline, incurring zero additional
 inference cost.
 
 \begin{figure}[t]
-\centering
-\fbox{\parbox{0.85\columnwidth}{\centering
-\vspace{3cm}
-\textbf{[Architecture Diagram]}\\
-Shared GRU encoder with zone-level auxiliary head\\
-(3-class destination-zone prediction, $\lambda_{\text{aux}} = 0.3$)\\
-\vspace{3cm}}}
+\centerline{\includegraphics[width=18.5pc]{figs/fig_architecture_ieee.pdf}}
 \caption{Proposed architecture. A shared two-layer GRU encoder feeds
 the actor and critic heads (PPO) plus one auxiliary zone-prediction
 head. Auxiliary gradients (dashed) shape the shared representation;
@@ -488,7 +479,7 @@ distorting rewards).
 
 \subsection{Main Results: the Rule-Collapse Regime}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
 \includegraphics[width=26pc]{figs/fig_main_results_ieee.pdf}
 \caption{Independent 12-hour evaluation at 2.5$\times$ peak arrival
@@ -496,7 +487,7 @@ rates (mean per-episode reward $\pm$ SE). Rule baselines (gray)
 collapse; the proposed Zone-Aux agent (red) achieves $-5{,}080 \pm
 1{,}090$ (3-seed pooled, $n=36$) with the shortest waiting time.}
 \label{fig:main_results}
-\end{figure}
+\end{figure*}
 
 
 Table~\ref{tab:main_results} reports the independent 12-hour
@@ -527,11 +518,13 @@ SD-ETA     & $-32{,}085 \pm 3{,}014$ & 693 & 48.8 \\
 GRU+PPO-92 & $-5{,}931 \pm 2{,}178$ & -- & -- \\
 GRU+PPO-122 & $-6{,}607 \pm 2{,}151$ & -- & -- \\
 Zone-Aux-92 & $-14{,}861 \pm 2{,}097$ & -- & -- \\
-\textbf{Zone-Aux (proposed)} & $\mathbf{-5{,}080 \pm 1{,}090}$ &
-\	extbf{2{,}760} & \	extbf{46.7} \\
+\textbf{Zone-Aux (proposed)} & $\mathbf{-5{,}080 \pm 1{,}090}$ & 	$\mathbf{2{,}760}$ & $\mathbf{46.7}$ \\
 MIX & $-5{,}548 \pm 2{,}352$ & 2{,}680 & 56.3 \\
+
 \bottomrule
 \end{tabular}
+\parbox{0.9\textwidth}{\footnotesize Passenger counts and waiting times were recorded for the rule baselines and the two deployment-relevant agents (proposed, MIX); intermediate ablation variants are reported on reward only.}
+
 \end{table}
 
 The Zone-Aux reward is the 3-seed pooled mean
