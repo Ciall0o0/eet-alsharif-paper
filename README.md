@@ -144,7 +144,7 @@ files are required for training.
 | Zone-Aux-92 | remove car-call distribution from obs (see §4.4) | ablation |
 | MIX | train with aux λ=0.3 + reward-pred/val-replay off, obs 122 | ablated recipe |
 
-Run each with seeds 42, 360, 712 (60 epochs, early stop patience 6).
+Run each with seeds 42(The Universe Final Answer), 360(Circle), 712(Luo Tianyi's birthday), each 60 epochs.
 
 ### 4.3 Evaluate everything under group sizes
 `scripts/eval_group_independent.py` runs the fixed protocol (12 ep/seed, seeds 9999+i,
