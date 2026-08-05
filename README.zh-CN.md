@@ -2,8 +2,7 @@
 
 本仓库是论文《Learning to Dispatch Where Rules Collapse: Zone-Aware GRU–RL Elevator
 Group Control via Single-Call Decomposition Training》的完整可复现工件。包含全部代码、
-配置、逐幕原始结果、统计检验、图件，以及三版论文（IEEE 会议版、IEEE Access、
-IEEE Intelligent Systems/Computer Magazine）的 LaTeX 源码，可端到端复现。
+配置、逐幕原始结果、统计检验与图件，可端到端复现。论文稿件本身不随本仓库分发。
 
 **协议一句话总结：** 训练时用*单人呼梯*（序列密集、辅助信号可学），评估时用*真实乘客组*
 （每组 1–10 人、均值 3.71、由真实电梯客流数据集校准）。
@@ -113,11 +112,6 @@ python scripts/pool_stats.py --npy results --proposed zoneaux_s42_main zoneaux_s
 # 5. 出图（IEEE 风格、白底、PDF 矢量）
 python scripts/make_figures.py
 
-# 6. 编译论文（TeX Live 2026）
-export PATH=/usr/local/texlive/2026/bin/x86_64-linux:$PATH
-cd paper && pdflatex -interaction=nonstopmode ieee_paper.tex && pdflatex -interaction=nonstopmode ieee_paper.tex
-cd ../paper_access && pdflatex -interaction=nonstopmode access_paper.tex && pdflatex -interaction=nonstopmode access_paper.tex
-cd ../paper_csmag && pdflatex -interaction=nonstopmode csmag_paper.tex && pdflatex -interaction=nonstopmode csmag_paper.tex
 ```
 
 ---
@@ -157,9 +151,9 @@ python scripts/od_prior.py            # zone OD 先验（10F 与 20F）
 PDF 矢量）：训练曲线、密度剖面、主结果、协同、OD 先验。
 `paper_access/figs/` 与 `paper_csmag/figs/` 下为论文嵌入版。
 
-### 4.6 编译三版论文
-见快速开始第 6 步。IEEE 会议版（`paper/`，8 页）、IEEE Access（`paper_access/`，9 页）、
-IEEE Intelligent Systems（`paper_csmag/`，8 页）。三版均 **0 错误、0 undefined 引用**。
+### 4.6 论文稿件
+论文稿件（IEEE 会议版 / IEEE Access / IEEE Intelligent Systems 三版）不随本仓库分发；
+其 LaTeX 源码各自编译均为 **0 错误、0 undefined 引用**。
 
 ---
 
@@ -176,9 +170,6 @@ scripts/        eval_group_independent.py（最终协议）、eval_group_matrix.
 results/        逐幕原始 npy（16 个 agent/场景）、main_results.csv、
                 main_results_perseed.csv、synergy_ablation.csv、group_eval_matrix.csv、
                 adaptive_raw.csv、coverage/density/od-prior 表
-paper/          IEEE 会议版（ieee_paper.tex/.pdf）
-paper_access/   IEEE Access 版（access_paper.tex/.pdf）+ figs/
-paper_csmag/    IEEE Intelligent Systems 版（csmag_paper.tex/.pdf）+ figs/
 figs_ieee/      IEEE 风格图源文件（PDF 矢量）
 lib/            共享绘图/持久化辅助（零硬编码路径）
 LICENSE, README.md, README.zh-CN.md, requirements.txt

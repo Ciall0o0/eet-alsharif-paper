@@ -1,8 +1,8 @@
 # Learning to Dispatch Where Rules Collapse: Zone-Aware GRU–RL Elevator Group Control via Single-Call Decomposition Training
 
 Reproducible artifact for the paper. This repository contains everything needed to
-reproduce the training, evaluation, statistics, figures, and the three paper versions
-(IEEE conference, IEEE Access, IEEE Intelligent Systems / Computer Magazine) end-to-end.
+reproduce the training, evaluation, statistics, and figures end-to-end. The paper
+manuscripts themselves are not distributed with this repository.
 
 **Protocol in one line:** train PPO on *single-passenger hall calls* (dense sequence,
 learnable auxiliary signal), evaluate on *real passenger group sizes* (1–10 pax per
@@ -124,11 +124,6 @@ python scripts/pool_stats.py --npy results --proposed zoneaux_s42_main zoneaux_s
 # 5. Figures (IEEE style, white background, PDF vector)
 python scripts/make_figures.py
 
-# 6. Papers (TeX Live 2026)
-export PATH=/usr/local/texlive/2026/bin/x86_64-linux:$PATH
-cd paper && pdflatex -interaction=nonstopmode ieee_paper.tex && pdflatex -interaction=nonstopmode ieee_paper.tex
-cd ../paper_access && pdflatex -interaction=nonstopmode access_paper.tex && pdflatex -interaction=nonstopmode access_paper.tex
-cd ../paper_csmag && pdflatex -interaction=nonstopmode csmag_paper.tex && pdflatex -interaction=nonstopmode csmag_paper.tex
 ```
 
 ---
@@ -171,10 +166,10 @@ palette, serif, PDF vector): training curves, density profile, main results, syn
 OD prior. The figure files under `paper_access/figs/` and `paper_csmag/figs/` are the
 paper-embedded versions.
 
-### 4.6 Compile the three papers
-See Quick Start step 6. IEEE conference (`paper/`, 8 pages), IEEE Access
-(`paper_access/`, 9 pages), IEEE Intelligent Systems (`paper_csmag/`, 8 pages).
-All three compile with **0 errors, 0 undefined references**.
+### 4.6 (paper manuscripts)
+The paper manuscripts (IEEE conference / IEEE Access / IEEE Intelligent Systems
+versions) are not distributed with this repository; they compile with **0 errors,
+0 undefined references** from their own LaTeX sources.
 
 ---
 
@@ -191,9 +186,6 @@ scripts/        eval_group_independent.py (final protocol), eval_group_matrix.py
 results/        raw per-episode npy (16 agents/scenarios), main_results.csv,
                 main_results_perseed.csv, synergy_ablation.csv, group_eval_matrix.csv,
                 adaptive_raw.csv, coverage/density/od-prior tables
-paper/          IEEE conference version (ieee_paper.tex/.pdf)
-paper_access/   IEEE Access version (access_paper.tex/.pdf) + figs/
-paper_csmag/    IEEE Intelligent Systems version (csmag_paper.tex/.pdf) + figs/
 figs_ieee/      IEEE-style figure sources (PDF vector)
 lib/            shared plotting/persistence helpers (no hard-coded paths)
 LICENSE, README.md, README.zh-CN.md, requirements.txt

@@ -23,3 +23,8 @@ paper/*.blg
 # OS
 .DS_Store
 Thumbs.db
+
+# Papers (not distributed with the repo)
+paper/
+paper_access/
+paper_csmag/
