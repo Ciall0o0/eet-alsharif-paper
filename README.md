@@ -239,7 +239,15 @@ All of these can be reproduced with the configs in `configs/`
 
 ## 8. Citation
 
-
+```bibtex
+@article{song2026zoneaware,
+  title={Learning to Dispatch Where Rules Collapse: Zone-Aware GRU--RL Elevator Group
+         Control via Single-Call Decomposition Training},
+  author={Song, Chenle},
+  journal={IEEE Access},
+  year={2026}
+}
+```
 
 ## 9. License
 
