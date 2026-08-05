@@ -40,8 +40,10 @@ _MASS_SHAPE: float = 16.0
 _MASS_SCALE: float = 5.0
 
 # Group-size categorical distribution
-_GROUP_SIZE_ITEMS: list[int] = [1, 2, 3, 4, 5]
-_GROUP_SIZE_WEIGHTS: list[float] = [0.90, 0.07, 0.01, 0.01, 0.01]
+_GROUP_SIZE_ITEMS: list[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+_GROUP_SIZE_WEIGHTS: list[float] = [0.156667, 0.13, 0.163333, 0.233333,
+                                   0.143333, 0.11, 0.026667, 0.023333,
+                                   0.01, 0.003334]  # real-data calibration
 
 # Arrival jitter: small N(0, 2) seconds around scheduled arrival
 _ARRIVAL_JITTER_SIGMA: float = 2.0

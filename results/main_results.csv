@@ -1,8 +1,13 @@
-Agent,RewardMean,RewardSE,Pax,Wait_s
-SD-nearest,-25970.6,3827.3,1154,52.2
-SD-ETA,-32084.9,3013.8,693,48.8
-GRU+PPO-92,-5930.8,2177.9,,
-GRU+PPO-122,-6606.6,2150.6,,
-Zone-Aux-92,-14860.8,2097.4,,
-Zone-Aux (proposed),-5080.3,1090.0,2760,46.7
-MIX,-5547.9,2352.1,2680,56.3
+Agent,RewardMean,RewardSE,RewardSD,Type,Protocol
+SD-nearest,-3099.8,444.1,1538.4,rule,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+SD-ETA,-2417.7,325.6,1128.1,rule,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+GRU+PPO-92,-1429.5,219.7,761.1,rl,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+GRU+PPO-122,-1389.9,295.1,1022.2,rl,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+Zone-Aux-92,-2153.5,173.8,602.2,rl,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+MIX,-1056.7,173.2,600.0,rl,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+20F s42,-1197.9,186.2,644.9,rl20f,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+20F s360,-1622.5,295.4,1023.3,rl20f,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+20F s712,-1148.1,90.1,312.1,rl20f,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+20F SD-ETA,-2895.4,427.1,1479.5,rule20f,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+20F SD-nearest,-3494.2,403.2,1396.8,rule20f,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"
+Zone-Aux (proposed),-792.9,59.8,358.8,rl,"train-single/eval-group (12h, real group sizes, x2.5 pax-aligned)"

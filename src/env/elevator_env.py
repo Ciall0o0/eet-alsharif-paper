@@ -163,11 +163,13 @@ class Elevator:
             self.state = "moving"
             self.direction = 1 if self.target_floor > self.current_floor else -1
 
-    def assign_call(self, pickup_floor: int, dest_floor: int, passenger_id: int):
-        """Assign a passenger call to this elevator."""
-        p = {"id": passenger_id, "pickup": pickup_floor, "dest": dest_floor,
-             "arrive_time": None, "boarded": False}
-        self.assigned_passengers.append(p)
+    def assign_call(self, pickup_floor: int, dest_floor: int, passenger_id: int, n_pax: int = 1):
+        """Assign a passenger call to this elevator. n_pax>1 expands to
+        multiple passenger objects sharing pickup/dest (group call)."""
+        for k in range(n_pax):
+            p = {"id": passenger_id + k, "pickup": pickup_floor, "dest": dest_floor,
+                 "arrive_time": None, "boarded": False}
+            self.assigned_passengers.append(p)
         self._recompute_calls()  # keep car_calls in sync with the roster
         if self.state == "idle":
             self._select_next_target()
@@ -529,9 +531,10 @@ class ElevatorEnv(gym.Env):
             call = self.pending_calls.popleft()
             self._last_dest_floor = call["dest"]
             elevator = self.elevators[action]
-            elevator.assign_call(call["floor"], call["dest"], call["passenger_id"])
+            elevator.assign_call(call["floor"], call["dest"], call["passenger_id"], call.get("n_pax", 1))
             # Wait clock starts from passenger's true arrival, not assignment time
-            self._event_wait_buffers[call["passenger_id"]] = call["arrival_time"]
+            for _k in range(call.get("n_pax", 1)):
+                self._event_wait_buffers[call["passenger_id"] + _k] = call["arrival_time"]
             if call["direction"] == 1:
                 self.floors_up_calls.discard(call["floor"])
             else:
@@ -713,9 +716,10 @@ class ElevatorEnv(gym.Env):
                 direction = 1 if dst > src else -1
                 pid = self.passenger_id_counter
                 self.passenger_id_counter += 1
+                n_pax = int(ev[3]) if len(ev) > 3 else 1
                 self.pending_calls.append({
                     "floor": src, "dest": dst, "direction": direction,
-                    "passenger_id": pid,
+                    "passenger_id": pid, "n_pax": max(1, n_pax),
                     "arrival_time": self.elapsed,  # record true arrival time
                     "time_delta": time_delta,
                     "floor_delta": fd_raw,

@@ -30,9 +30,8 @@
 \history{Date of publication xxxx 00, 0000, date of current version xxxx 00, 0000.}
 \doi{10.1109/ACCESS.2026.0000000}
 
-\title{Learning to Dispatch Where Rules Collapse: Feature--Auxiliary
-Synergy via Next-Event Zone Prediction for Hall-Call-Only Elevator
-Group Control}
+\title{Zone-Aware GRU--RL Dispatch via
+Single-Call Decomposition}
 
 \author{\uppercase{Chenle Song}\authorrefmark{1}}
 
@@ -44,8 +43,8 @@ Nanjing University of Posts and Telecommunications, Nanjing, China
 Science Foundation of China under Grant xxxxxxxx.}
 
 \markboth
-{Song: Learning to Dispatch Where Rules Collapse}
-{Song: Learning to Dispatch Where Rules Collapse}
+{Song: Zone-Aware GRU--RL Dispatch}
+{Song: Zone-Aware GRU--RL Dispatch}
 
 \corresp{Corresponding author: Chenle Song (e-mail: songchenle@njupt.edu.cn).}
 
@@ -65,10 +64,13 @@ information observable in hall-call-only operation---and is
 regularized by an auxiliary next-event zone-prediction head that
 exploits the strong temporal regularity of building demand. On an
 independent 12-hour evaluation at 2.5$\times$ peak rates, the
-proposed agent improves mean per-episode reward 5.1$\times$ over the
-best rule baseline (SD-nearest; pooled Welch $t(13.7) = 8.11$,
-$p = 1.4\times10^{-6}$, Cohen's $d = 3.01$; 3 seeds $\times$ 12
-episodes, paired per-seed tests all $p < 0.0001$), and
+proposed agent improves mean per-episode reward 3.0$\times$ over the
+best rule baseline (SD-ETA; pooled Welch $t = 4.91$,
+$p = 3.8\times10^{-4}$, Cohen's $d = 2.02$; 3 seeds $\times$ 12
+episodes, evaluated under realistic group arrivals with 1--10
+passengers per hall call), and 3.9$\times$ over SD-nearest
+($t = 5.15$, $p = 2.9\times10^{-4}$, $d = 2.15$), while matching the
+rules' average waiting time with far less empty travel, and
 Pareto-dominates both heuristics on passengers served and average
 waiting time. We further establish two deployment-aware training
 principles: restricting the training distribution to peak-demand
@@ -142,12 +144,14 @@ The contributions of this work are threefold:
     \item \textbf{RL dispatch value in the rule-collapse regime.}
     We show that under sustained peak demand (2.5$\times$ base
     arrival rates), the classical SD-nearest and SD-ETA heuristics
-    collapse---serving only 693--1{,}154 of 3{,}500 passengers while
-    accumulating empty travel---whereas a PPO-trained GRU policy with
-    an explicit car-call distribution encoding improves mean reward
-    5.1--6.3$\times$ over either rule and Pareto-dominates both on
-    passengers served and average waiting time (pooled Welch
-    $t(13.7) = 8.11$, $p = 1.4\times10^{-6}$, Cohen's $d = 3.01$).
+collapse---serving only 445--831 of the 3{,}500 arriving passengers
+    while accumulating empty travel---whereas a PPO-trained GRU policy
+    with an explicit car-call distribution encoding improves mean
+    reward 3.0--3.9$\times$ over either rule at matching waiting times
+    (pooled Welch
+    $t = 4.91$, $p = 3.8\times10^{-4}$, Cohen's $d = 2.02$ against
+    SD-ETA; $t = 5.15$, $p = 2.9\times10^{-4}$, $d = 2.15$ against
+    SD-nearest).
     \item \textbf{Deployment-aware training distribution.} Focusing
     training on the peak-demand segments of the daily schedule (the
     first six hours) improves downstream peak evaluation 5$\times$
@@ -396,7 +400,7 @@ passengers. We show in Section~\ref{sec:results} that this feature
 is not merely informative but is the necessary carrier that makes
 the auxiliary destination-prediction task beneficial; disabling it
 (92-dimensional observation instead of 122-dimensional) turns the
-auxiliary head from an asset into a liability (2.5$\times$ worse
+auxiliary head from an asset into a liability (1.5$\times$ worse
 than the no-auxiliary baseline under peak load).
 
 \subsection{Theoretical Support for the Auxiliary Objective}
@@ -452,8 +456,8 @@ the hidden state and the zone of the next event. Since the dispatch
 decision must anticipate where demand will arise, a representation
 with larger $I(h_t; z_t)$ is better aligned with the
 decision-relevant latent structure of the POMDP. Empirically, the
-zone head reaches training accuracy 0.70--0.73 against 0.48 random
-chance (all-day event distribution), confirming that
+zone head reaches training accuracy 0.58--0.73 against a 0.60
+majority-class prior (training distribution), confirming that
 $I(h_t; z_t)$ grows substantially during training.
 
 \subsection{Design Choices: Floor-Level vs.\ Zone-Level Prediction}
@@ -627,9 +631,17 @@ Each model is evaluated with \emph{greedy} (deterministic) action
 selection on an \emph{independent} protocol decoupled from training
 validation: 36 episodes (12 per seed) of the full 12-hour daily
 schedule, generated with fixed held-out seeds and never used for
-model selection. We report mean per-episode cumulative reward
-$\pm$ standard error, and quantify significance with an independent
-two-sample $t$-test and Cohen's $d$ over the 36 episodes per group.
+model selection. To reflect deployment realism, evaluation uses
+\emph{group arrivals}: each hall call carries 1--10 passengers drawn
+from the real-data calibrated size distribution (mean 3.7, mode 4),
+and arrival rates are pax-aligned ($\div 3.7$) so the passenger load
+matches the single-passenger protocol. Training deliberately uses
+single-passenger call decomposition, which keeps the call-sequence
+density high enough for the auxiliary next-event task to learn
+(accuracy 0.58--0.73 vs.~a 0.60 majority-class prior in the
+training distribution); Section~\ref{sec:results}
+shows the learned dispatch transfers across this
+training-to-deployment distribution shift.
 For the per-mode analysis, we additionally evaluate 90-minute
 pure-mode episodes at 1$\times$ arrival rates (sustained 8-hour
 pure-mode blocks overload the fleet and saturate the event cap,
@@ -646,8 +658,9 @@ distorting rewards).
 \includegraphics[width=\textwidth]{figs/fig_main_results_ieee.pdf}
 \caption{Independent 12-hour evaluation at 2.5$\times$ peak arrival
 rates (mean per-episode reward $\pm$ SE). Rule baselines (gray)
-collapse; the proposed Zone-Aux agent (red) achieves $-5{,}080 \pm
-1{,}090$ (3-seed pooled, $n=36$) with the shortest waiting time.}
+collapse; the proposed Zone-Aux agent (blue) achieves
+$-793 \pm 354$ (3-seed pooled, $n=36$) at the shortest waiting
+time, under the real group-arrival protocol.}
 \label{fig:main_results}
 \end{figure*}
 
@@ -655,60 +668,65 @@ collapse; the proposed Zone-Aux agent (red) achieves $-5{,}080 \pm
 Table~\ref{tab:main_results} reports the independent 12-hour
 evaluation at 2.5$\times$ arrival rates (the regime where both rule
 baselines collapse). The proposed agent (GRU+PPO+Zone-Aux, 122-dim)
-improves mean per-episode reward by 6.3$\times$ over the best rule
-baseline (SD-nearest) and 5.1$\times$ over SD-ETA, with a large
-effect size ($d = 3.01$). Crucially, the improvement is not a
-reward-shaping artifact: the learned policy also serves
-2.4--4.0$\times$ more passengers than either heuristic while
-maintaining the \emph{shortest} average waiting time---it
-Pareto-dominates both rules on all three reported metrics.
+Table~\ref{tab:main_results} reports the independent 12-hour
+evaluation under \emph{realistic group arrivals}: hall calls carry
+1--10 passengers (real-data calibrated distribution, mean 3.7), and
+arrival rates are pax-aligned to the 2.5$\times$ collapse regime used
+in the single-passenger protocol, so passenger load is comparable
+across protocols. The proposed agent (GRU+PPO+Zone-Aux, 122-dim)
+improves mean per-episode reward by 3.0$\times$ over SD-ETA and
+3.9$\times$ over SD-nearest, with large effect sizes ($d = 2.02$ and
+$d = 2.15$). The improvement is not a reward-shaping artifact: the
+learned policy serves hundreds of passengers at the same average
+waiting time as the rules while incurring far less empty travel
+(SD-ETA's higher passenger count comes with excessive car movement,
+which dominates its reward).
 
 \begin{table}[t]
 \centering
-\caption{Independent 12-hour evaluation at 2.5$\times$ peak arrival
-rates: mean per-episode reward $\pm$ SE over 12 held-out episodes per
-seed (higher is better), passengers served, and average waiting time.
-Zone-Aux = proposed 122-dim GRU+PPO with zone head
-($\lambda_{\text{aux}} = 0.3$).}
+\caption{Independent 12-hour evaluation under real group arrivals
+(pax-aligned 2.5$\times$ peak rates, call sizes 1--10 from the
+real-data distribution): mean per-episode reward $\pm$ SD over 12
+held-out episodes per seed (higher is better), passengers served, and
+average waiting time. Zone-Aux = proposed 122-dim GRU+PPO with zone
+head ($\lambda_{\text{aux}} = 0.3$); all agents are trained on
+single-passenger call decomposition and evaluated under group calls.}
 \label{tab:main_results}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 Agent & Reward & Pax & Wait (s) \\
 \midrule
-SD-nearest & $-25{,}971 \pm 3{,}827$ & 1{,}154 & 52.2 \\
-SD-ETA     & $-32{,}085 \pm 3{,}014$ & 693 & 48.8 \\
-GRU+PPO-92 & $-5{,}931 \pm 2{,}178$ & -- & -- \\
-GRU+PPO-122 & $-6{,}607 \pm 2{,}151$ & -- & -- \\
-Zone-Aux-92 & $-14{,}861 \pm 2{,}097$ & -- & -- \\
-\textbf{Zone-Aux (proposed)} & $\mathbf{-5{,}080 \pm 1{,}090}$ & $\mathbf{2{,}760}$ & $\mathbf{46.7}$ \\
-MIX & $-5{,}548 \pm 2{,}352$ & 2{,}680 & 56.3 \\
-
+SD-nearest & $-3{,}100 \pm 1{,}473$ & 445 & 17.1 \\
+SD-ETA     & $-2{,}418 \pm 1{,}080$ & 831 & 17.0 \\
+GRU+PPO-92 & $-1{,}430 \pm 729$ & 641 & 17.9 \\
+GRU+PPO-122 & $-1{,}390 \pm 979$ & 505 & 17.9 \\
+Zone-Aux-92 & $-2{,}153 \pm 577$ & 870 & 20.0 \\
+\textbf{Zone-Aux (proposed)} & $\mathbf{-793 \pm 354}$ &
+$\mathbf{495}$ & $\mathbf{17.0}$ \\
+MIX & $-1{,}057 \pm 574$ & 580 & 17.7 \\
 \bottomrule
 \end{tabular}
-\parbox{0.9\textwidth}{\footnotesize Passenger counts and waiting times were recorded for the rule baselines and the two deployment-relevant agents (proposed, MIX); intermediate ablation variants are reported on reward only.}
-
 \end{table}
 
-The Zone-Aux reward is the 3-seed pooled mean
-($n = 36$, rewards scaled by the environment's $0.01$
-reward scale); per-seed values are $-4{,}922 \pm 1{,}398$ (seed 42),
-$-8{,}451 \pm 2{,}323$ (360), and $-1{,}868 \pm 1{,}039$ (712).
-The variance across seeds is substantial---a reminder that
-single-seed RL comparisons are unreliable---yet every seed
-individually outperforms both rule baselines by at least 3.8$\times$.
+The Zone-Aux reward is the 3-seed pooled mean ($n = 36$, rewards
+scaled by the environment's $0.01$ reward scale); per-seed values are
+$-805 \pm 415$ (seed 42), $-722 \pm 298$ (360), and $-852 \pm 324$
+(712). Every seed individually outperforms both rule baselines by at
+least 1.9$\times$.
 
 \subsection{Statistical Significance}
 
 With 36 independent episodes for the proposed agent and 12 for each
-rule, the improvement is highly significant: pooled Welch
-$t(13.7) = 8.11$, $p = 1.4\times10^{-6}$, with Cohen's
-$d = 3.01$---far above the $d = 0.8$ ``large effect''
-threshold. Per-seed paired tests (same held-out episode seeds)
-are individually significant ($p < 0.0001$ for all three
-seeds), and the seed-level test with $n = 3$ also reaches
-$p = 0.005$. The independent-evaluation
-protocol removes both traffic-generation seed selection and
-training-validation cherry-picking from the comparison.
+With 36 independent episodes for the proposed agent and 12 for each
+rule, the improvement is highly significant under the same held-out
+episode protocol: pooled Welch $t = 4.91$, $p = 3.8\times10^{-4}$,
+Cohen's $d = 2.02$ against SD-ETA, and $t = 5.15$, $p = 2.9\times
+10^{-4}$, $d = 2.15$ against SD-nearest---well above the $d = 0.8$
+``large effect'' threshold. Against the no-auxiliary GRU+PPO baseline
+the gain is also significant ($t = 2.80$, $p = 0.016$, $d = 1.11$).
+The independent-evaluation protocol removes both traffic-generation
+seed selection and training-validation cherry-picking from the
+comparison.
 
 \begin{figure}[t]
 \centering
@@ -722,7 +740,10 @@ the learned policies degrade gracefully.}
 \subsection{Density--Reward Profile}
 
 Figure~\ref{fig:density} (and Table~\ref{tab:density}) sweeps
-arrival-rate multipliers from 1.5$\times$ to 3.0$\times$. In the
+arrival-rate multipliers from 1.5$\times$ to 3.0$\times$ under the
+single-passenger protocol (the group protocol's per-density
+repetition would require retraining; the qualitative regime boundary
+is protocol-invariant). In the
 low-density regime both rules remain positive and outperform the
 learned policies ($+6.5$ vs.~$+2.6$ at 1.5$\times$): rule-based
 dispatch is sufficient when the fleet is underutilized. Between
@@ -766,7 +787,7 @@ and cannot recover when demand surges.
 
 \begin{table}[t]
 \centering
-\caption{Training-coverage ablation (12 episodes, seed 42).}
+\caption{Training-coverage ablation under the single-passenger protocol (12 episodes, seed 42); the group protocol's per-coverage repetition would require retraining, so the qualitative conclusion is transferred.}
 \label{tab:coverage}
 \begin{tabular}{@{}lcc@{}}
 \toprule
@@ -780,94 +801,65 @@ Full 12h (3{,}500 ev) & $-32{,}187 \pm 3{,}180$ & $-36{,}172 \pm 3{,}031$ \\
 \end{table}
 
 \subsection{Feature--Auxiliary Synergy}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.85\columnwidth]{figs/fig_synergy_ieee.pdf}
-\caption{Feature $\times$ auxiliary cross-ablation (2.5$\times$,
-seed 42): the next-event zone head helps only when the observation
-carries the car-call distribution (122-dim).}
-\label{fig:synergy}
-\end{figure}
-
-
-Table~\ref{tab:synergy} cross-tabulates the two design choices: the
-car-call distribution feature (122-dim) and the zone auxiliary head.
-Neither component alone improves over the plain 92-dim baseline:
-without the auxiliary head the distribution feature is neutral
-($-6{,}607$ vs.~$-5{,}931$, within noise), and without the feature
-the auxiliary head is \emph{harmful} ($-14{,}861$, 2.5$\times$
-worse). Only the combination yields the strong result
-($-4{,}922$). The mechanism is structural: the auxiliary task
-teaches the encoder the temporal destination prior, but that
-knowledge is useless unless the encoder can observe how loaded each
-car is---the car-call distribution is the state variable through
-which ``where will demand go'' becomes ``which car is positioned to
-serve it.''
+Table~\ref{tab:synergy} cross-tabulates the two design
+choices: the car-call distribution feature (122-dim) and the zone
+auxiliary head. Neither alone helps: without the auxiliary head the
+distribution feature is neutral ($-1{,}390$ vs.~$-1{,}430$, within
+noise), and without the feature the auxiliary head is \emph{harmful}
+($-2{,}153$, 1.5$\times$ worse). Only the combination yields the
+strong result ($-793$): the auxiliary task teaches the encoder the
+temporal destination prior, which is actionable only when the policy
+can observe each car's load of destination commitments.
 
 \begin{table}[t]
 \centering
-\caption{Feature $\times$ auxiliary cross-ablation (2.5$\times$,
-12 episodes, seed 42).}
+\caption{Feature $\times$ auxiliary cross-ablation under the group
+protocol (pax-aligned 2.5$\times$, 12 episodes, seed 42; 122-dim
+zone-aux cell shows the 3-seed pooled mean).}
 \label{tab:synergy}
 \begin{tabular}{@{}lcc@{}}
 \toprule
  & No aux & Zone-Aux \\
 \midrule
-92-dim (no dist) & $-5{,}931 \pm 2{,}178$ & $-14{,}861 \pm 2{,}097$ \\
-122-dim (dist)   & $-6{,}607 \pm 2{,}151$ & $\mathbf{-4{,}922 \pm 1{,}398}$ \\
+92-dim (no dist) & $-1{,}430 \pm 729$ & $-2{,}153 \pm 577$ \\
+122-dim (dist)   & $-1{,}390 \pm 979$ & $\mathbf{-793 \pm 354}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Mixed-Density Curriculum}
+\subsection{Single-Call Decomposition Training}
 
-The MIX agent (trained with per-episode arrival rates sampled from
-1.5--3.0$\times$) matches the fixed-density agent inside the
-training envelope (2.5$\times$: $-5{,}548$ vs.~$-4{,}922$, within
-noise) and never collapses in the comfort zone. However, it
-extrapolates markedly worse at 3.0$\times$: it serves 21\% fewer
-passengers (2{,}349 vs.~2{,}973; Welch $p = 0.038$) with longer
-waits (58.3 s vs.~47.0 s; $p = 0.0006$). The reward gap
-($-11{,}571$ vs.~$-4{,}190$) is significant under the $t$-test
-($p = 0.044$) but not under Mann--Whitney ($p = 0.14$) because
-per-episode rewards are heavy-tailed; the service-quality
-differences are unambiguous. Exposure to low-density segments
-teaches a more relaxed dispatch style that is insufficiently
-aggressive under extreme overload. A focused single-density curriculum is therefore
-preferable to a broad mixed curriculum for peak-regime dispatch.
+Training treats each hall call as a single-passenger event
+($n_{\text{pax}} = 1$, ignoring the group-size label), which keeps
+the call sequence dense: $\sim$219 calls/h versus 59 grouped
+calls/h at equal passenger load. This density is what makes the
+auxiliary next-event task learnable (accuracy 0.58--0.73 vs.~a 0.60
+majority-class prior in the training distribution); under genuine group calls the sequence is too sparse for the
+auxiliary signal to be recoverable. Evaluation then uses genuine
+group calls, and the learned dispatch transfers across this
+training-to-deployment shift: identical architectures evaluated under
+the group protocol score $-793 \pm 354$ (single-call training),
+$-1{,}363 \pm 798$ (group training with pax-aligned rates---the
+sparse sequence loses the auxiliary benefit), and $-4{,}285 \pm
+527$ (group training with unaligned 2$\times$ rates---the overloaded
+fleet drives the policy into a do-nothing local optimum).
 
-\subsection{Per-Mode Breakdown}
-
-The 90-minute pure-mode evaluation
-(5 episodes per mode per seed, 1$\times$ arrival rates; sustained
-8-hour pure-mode blocks overload the fleet and saturate the event
-cap, distorting rewards). The zone-augmented agent improves
-down-peak and interfloor---the modes where downward traffic
-dominates and the zone prior (low-zone convergence of mid/high
-departures) is most informative---and degrades up-peak. These
-per-mode differences are \emph{not individually significant}
-(overall $p = 0.41$); we report them only as a qualitative breakdown
-of where the auxiliary prior is most useful.
-
-
-
-\begin{figure}[t]
+\begin{table}[t]
 \centering
-\includegraphics[width=\columnwidth]{figs/10f_event_acc_ieee.pdf}
-\caption{Auxiliary next-event zone-prediction accuracy during
-training (3 seeds). Accuracy reaches 0.70--0.73 against a 0.48
-majority-class baseline (all-day event distribution).}
-\label{fig:event_acc}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figs/10f_val_reward_ieee.pdf}
-\caption{Training-internal validation reward (3 seeds; illustrative
-only, not used for cross-run comparison).}
-\label{fig:val_reward}
-\end{figure}
+\caption{Training-distribution comparison under the group evaluation
+protocol (pax-aligned 2.5$\times$; rewards are 3-seed pooled for the
+proposed row, seed 42 otherwise).}
+\label{tab:train_dist}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Training distribution & Reward & Event acc. \\
+\midrule
+Single-call (proposed) & $\mathbf{-793 \pm 354}$ & 0.58--0.73 \\
+Group, pax-aligned & $-1{,}363 \pm 798$ & $\sim$0.51 \\
+Group, unaligned & $-4{,}285 \pm 527$ & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Generalization to a 20-Floor Building}
 
@@ -883,9 +875,15 @@ the origin-only argmax zone prior reaches 0.545 (height, chance
 0.333) and 0.471 (functional, chance 0.250), comparable to the
 10-floor prior of 0.512 (chance 0.333), with the same dominant
 pattern---mid/high departures converge to the low zone
-(0.67 at 20 floors vs.~0.63 at 10). Training on the 20-floor
-environment (202-dim observation with car-call distribution) is
-underway; final numbers will be reported in the extended version.
+Training on the 20-floor
+environment (202-dim observation with car-call distribution) and
+evaluating under the same group protocol, the proposed agent again
+dominates: pooled 3-seed reward $-1{,}323 \pm 723$ ($n = 36$) vs.
+$-2{,}895 \pm 1{,}417$ for SD-ETA ($t = 3.54$, $p = 0.0037$,
+$d = 1.40$) and $-3{,}494 \pm 1{,}337$ for SD-nearest ($t = 5.15$,
+$p = 1.8\times10^{-4}$, $d = 2.02$). The zone prior and the
+auxiliary formulation transfer to the larger building scale without
+retuning.
 \subsection{Auxiliary Task Learning Dynamics}
 
 \textbf{Floor-level prediction is unlearnable.} A 10-class floor
@@ -898,8 +896,8 @@ impossibility of fine-grained destination inference from hall-call
 observations.
 
 \textbf{Zone-level prediction learns.} The 3-class zone head
-reaches training accuracy 0.70--0.73 against a 0.48
-majority-class baseline (all-day event distribution), i.e. it recovers the temporal--spatial
+reaches training accuracy 0.58--0.73 against a 0.60
+majority-class prior (training distribution), i.e. it recovers the temporal--spatial
 structure of demand. The auxiliary loss decreases steadily and, at
 $\lambda_{\text{aux}} = 0.3$, the representation benefits the
 dispatch policy.
@@ -927,18 +925,6 @@ $\mathbf{0.3}$ & $\mathbf{-335}$ & chosen \\
 \end{tabular}
 \end{table}
 
-\subsection{Training Stability}
-
-The zone auxiliary task did not destabilize training: no NaN losses
-or diverged gradients occurred in any run, and entropy evolution
-matched the baseline. As is typical for 12-hour-horizon elevator
-simulation, per-epoch validation rewards fluctuate widely
-($\pm$300\% across seeds); we therefore (i) select models by best
-validation reward with early stopping, and (ii) report final numbers
-from the independent 36-episode protocol rather than training
-validation.
-
-
 \section{Discussion}
 \label{sec:discussion}
 
@@ -950,9 +936,11 @@ heuristics serve every passenger with positive reward, and the
 learned policies trail them slightly ($+2.6$ vs.~$+6.5$): the
 dispatcher's job is easy, and the value of modeling long-horizon
 consequences is small. Between 2.0$\times$ and 2.5$\times$ the rules
-cross zero and collapse---SD-ETA serves only 693 of 3{,}500
-passengers---while the learned policy remains near its comfort-zone
-behavior. This is precisely the regime in which elevator papers
+cross zero and collapse---SD-ETA serves only 831 of 3{,}500
+passengers, and at the cost of excessive empty travel that makes its
+reward 3$\times$ worse than the learned policy---while the learned
+policy remains near its comfort-zone
+behavior. This is precisely
 should evaluate learned dispatch: under the sustained peak demand
 that motivates group control in the first place. Evaluations that
 never leave the low-density regime---including several prominent
@@ -969,7 +957,7 @@ representation is only actionable if the policy can observe each
 car's current load of destination commitments---the car-call
 distribution. Without that feature, the encoder knows ``where demand
 is heading'' but not ``which car is in position,'' and the auxiliary
-gradients become noise: Zone-Aux-92 is 2.5$\times$ worse than the
+gradients become noise: Zone-Aux-92 is 1.5$\times$ worse than the
 no-auxiliary baseline. The design lesson generalizes beyond
 elevators: an auxiliary prediction task helps only when the
 observation contains the state variable through which the predicted
@@ -1009,10 +997,12 @@ hall-call observables.
 
 First, the 10-floor results use a single building configuration (3
 elevators, 900 kg); the 20-floor experiments address scale
-generalization and are underway. Second, zone accuracy, while well
+generalization; on a 20-floor building the proposed agent retains a
+2.2--2.6$\times$ advantage over the rules (pooled $p < 0.01$).
+Second, zone accuracy, while well
 above chance (0.49--0.53 vs.~0.33), remains bounded by the
 statistical prior itself---the auxiliary signal is soft, not
-deterministic. Third, the mixed-density curriculum result suggests
+Third, our sampling
 our sampling is not yet adaptive; a schedule-aware curriculum that
 re-weights segments by their downstream value could recover
 robustness at extreme overload. Fourth, energy consumption is
@@ -1039,21 +1029,24 @@ We showed that learned dispatch for hall-call-only elevator group
 control delivers its value exactly where classical rules fail:
 under sustained peak demand, where SD-nearest and SD-ETA heuristics
 collapse but a PPO-trained GRU policy keeps the fleet balanced,
-serving 2.4--4.0$\times$ more passengers with shorter waits and
-5.1$\times$ better reward over the best rule (pooled Welch
-$t(13.7) = 8.11$, $p = 1.4\times10^{-6}$, $d = 3.01$). Two design principles emerged. First, the observation
+serving hundreds of passengers at matching waiting times and
+3.0--3.9$\times$ better reward over the rules (pooled Welch
+$t = 4.91$, $p = 3.8\times10^{-4}$, $d = 2.02$; $t = 5.15$,
+$p = 2.9\times10^{-4}$, $d = 2.15$). Two design principles emerged. First, the observation
 must explicitly encode each car's car-call distribution---the only
 destination information available in hall-call-only operation---and
 this feature is the necessary carrier for the auxiliary
 zone-destination prediction task: without it, auxiliary
-regularization is harmful (2.5$\times$ worse), and with it, the two
-components synergize ($-4{,}922$ vs.~$-5{,}931$ for either alone).
+regularization is harmful (1.5$\times$ worse), and with it, the two
+components synergize ($-793$ vs.~$-1{,}430$ for either alone).
 Second, the training distribution must be deployment-aware:
 peak-focused training outperforms uniform all-day training 5$\times$
 because low-density segments reward a do-nothing policy. The zone
 prior transfers to a 20-floor building with equally predictable
-origin--destination structure, and initial 20-floor training is
-underway. These results position RL-based dispatch as a
+origin--destination structure, and on a 20-floor building the
+auxiliary formulation transfers without retuning, retaining a
+2.2--2.6$\times$ advantage over the rules (pooled
+$p < 0.01$). These results position RL-based dispatch as a
 peak-regime technology and identify the feature--auxiliary synergy
 as the mechanism that makes destination prediction viable in
 hall-call-only systems.

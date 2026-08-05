@@ -45,7 +45,7 @@ except ImportError:
 # helpers
 # ---------------------------------------------------------------------------
 
-def _adapt_gen_events(gen_events: np.ndarray) -> np.ndarray:
+def _adapt_gen_events(gen_events: np.ndarray, train_mode: str = "group") -> np.ndarray:
     """Adapt TrafficGenerator output for ElevatorEnv event consumption.
 
     ElevatorEnv._process_events expects:
@@ -55,17 +55,43 @@ def _adapt_gen_events(gen_events: np.ndarray) -> np.ndarray:
         [origin(0), dest(1), event_time(2), patience(3), mass(4),
          group_size(5), jitter(6), routing(7), delta(8), 10.0(9)]
 
-    Remap: col 2 = 1 (one passenger per row), col 3 = gen col 2 (event_time).
+    train_mode:
+      "single" -> n_pax = 1 (dense call sequence; aux supervision learnable)
+      "group"  -> n_pax = group_size (real deployment distribution; used for
+                  validation so best-ckpt selection aligns with deployment)
+      "burst"  -> decompose each group call into group_size single-pax events
+                  at the same floor/dest with 0.1 s offsets (capacity pressure
+                  preserved without multi-pax objects).
     """
     if gen_events.size == 0:
         return gen_events
+    if train_mode == "burst" and gen_events.shape[1] > 5:
+        gs = np.clip(gen_events[:, 5].astype(int), 1, 30)
+        n_out = int(gs.sum())
+        ncols = max(10, gen_events.shape[1])
+        out = np.zeros((n_out, ncols), dtype=np.float32)
+        idx = 0
+        for i, g in enumerate(gs):
+            t0 = gen_events[i, 2]
+            for k in range(g):
+                out[idx, 0] = gen_events[i, 0]
+                out[idx, 1] = gen_events[i, 1]
+                out[idx, 2] = t0 + k * 0.1
+                out[idx, 3] = 1.0
+                for c in range(4, min(gen_events.shape[1], ncols)):
+                    out[idx, c] = gen_events[i, c]
+                idx += 1
+        return out
     n = gen_events.shape[0]
     ncols = max(10, gen_events.shape[1])
     out = np.zeros((n, ncols), dtype=np.float32)
     out[:, 0] = gen_events[:, 0]
     out[:, 1] = gen_events[:, 1]
     out[:, 2] = gen_events[:, 2]  # event_time -> col 2 (ElevatorEnv convention)
-    out[:, 3] = 1.0               # n_pax
+    if train_mode == "group" and gen_events.shape[1] > 5:
+        out[:, 3] = np.clip(gen_events[:, 5], 1, 30)
+    else:
+        out[:, 3] = 1.0
     for c in range(4, min(gen_events.shape[1], ncols)):
         out[:, c] = gen_events[:, c]
     return out
@@ -96,6 +122,7 @@ def validate(
     trainer: PPOTrainer,
     runner: MultiEnvRunner,
     val_items: list,
+    val_train_mode: str = "group",
 ) -> dict:
     """Run validation pass over fixed validation episodes.
 
@@ -125,7 +152,7 @@ def validate(
         if events_arr.size == 0 or events_arr.shape[0] == 0:
             continue
 
-        adapted = _adapt_gen_events(events_arr)
+        adapted = _adapt_gen_events(events_arr, train_mode=val_train_mode)
         runner.reset_env(val_env_idx, adapted, trainer.policy)
 
         episode_reward = 0.0
@@ -172,6 +199,7 @@ def _compute_aux_metrics(
     val_items: list,
     device: torch.device,
     env_cfg: dict | None = None,
+    val_train_mode: str = "group",
 ) -> dict:
     """Compute dest_pred accuracy@1 and CE loss using real env rollouts."""
     if not trainer.aux_prediction:
@@ -191,7 +219,7 @@ def _compute_aux_metrics(
 
     with torch.no_grad():
         for _mode_name, events_arr in val_items:
-            adapted = _adapt_gen_events(events_arr)
+            adapted = _adapt_gen_events(events_arr, train_mode=val_train_mode)
             if adapted.shape[0] == 0:
                 continue
 
@@ -499,7 +527,7 @@ def main():
         # Feed initial episodes
         for i in range(num_envs):
             if train_ptr < len(train_episodes):
-                adapted = _adapt_gen_events(train_episodes[train_ptr])
+                adapted = _adapt_gen_events(train_episodes[train_ptr], train_mode=traffic_cfg.get("train_train_mode", "single"))
                 runner.reset_env(i, adapted, trainer.policy)
                 train_ptr += 1
             else:
@@ -515,7 +543,7 @@ def main():
             # Re-feed finished envs
             for i in range(num_envs):
                 if runner.done[i] and train_ptr < len(train_episodes):
-                    adapted = _adapt_gen_events(train_episodes[train_ptr])
+                    adapted = _adapt_gen_events(train_episodes[train_ptr], train_mode=traffic_cfg.get("train_train_mode", "single"))
                     runner.reset_env(i, adapted, trainer.policy)
                     train_ptr += 1
 
@@ -551,12 +579,12 @@ def main():
         if val_freq > 0 and (
             epoch % val_freq == 0 or epoch == total_epochs - 1
         ):
-            val_stats = validate(trainer, runner, val_items)
+            val_stats = validate(trainer, runner, val_items, traffic_cfg.get("val_train_mode", "group"))
 
         # -- Aux prediction metrics ------------------------------------------
         aux_stats = {}
         if trainer.aux_prediction:
-            aux_stats = _compute_aux_metrics(trainer, val_items, device, env_cfg)
+            aux_stats = _compute_aux_metrics(trainer, val_items, device, env_cfg, traffic_cfg.get("val_train_mode", "group"))
 
         # -- Logging ---------------------------------------------------------
         epoch_time = time.time() - epoch_start_time

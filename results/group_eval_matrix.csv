@@ -1,0 +1,17 @@
+agent,type,reward_mean,reward_sd,pax,wait,note
+noaux92_s42,rl,-1429.54,728.73,640.75,17.88,
+noaux122_s42,rl,-1389.86,978.73,505.25,17.87,
+zoneaux_s42_main,rl,-804.8,415.4,581.0,17.4,main recipe s42
+zoneaux_s42_legacy,rl,-1634.05,784.94,210.0,16.82,old split-arch (invalidated)
+zoneaux_s360,rl,-721.64,298.38,598.17,17.58,
+zoneaux_s712,rl,-852.07,324.39,406.5,16.04,
+eventaux92_s42,rl,-2153.47,576.57,870.5,20.05,
+mixaux122_s42,rl,-1056.69,574.43,580.08,17.71,
+burst2_s42,rl,-1543.5,679.0,145.5,16.7,burst-train 60ep (rejected)
+sd_eta,rule,-2417.73,1080.06,830.67,17.0,
+sd_nearest,rule,-3099.85,1472.89,445.42,17.11,
+zone20f_s42,rl20f,-1197.9,722.6,,,20F
+zone20f_s360,rl20f,-1622.5,722.6,,,20F
+zone20f_s712,rl20f,-1148.1,722.6,,,20F
+20f_sd_eta,rule20f,-2895.4,,,,20F
+20f_sd_nearest,rule20f,-3494.2,,,,20F
