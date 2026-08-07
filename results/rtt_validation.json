@@ -1,0 +1,40 @@
+{
+ "rtt_theory": 130.9814412345679,
+ "capacity_theory": 494.72657644645255,
+ "t_v": 4.709876543209877,
+ "S": 4.6855899999999995,
+ "results": [
+  {
+   "mult": 1.0,
+   "calls": 173,
+   "arrived_pax": 634,
+   "served_pax": 612,
+   "rate": 612.0
+  },
+  {
+   "mult": 2.0,
+   "calls": 371,
+   "arrived_pax": 1397,
+   "served_pax": 1247,
+   "rate": 1247.0
+  },
+  {
+   "mult": 4.0,
+   "calls": 723,
+   "arrived_pax": 2732,
+   "served_pax": 1381,
+   "rate": 1381.0
+  },
+  {
+   "mult": 8.0,
+   "calls": 1484,
+   "arrived_pax": 5471,
+   "served_pax": 1661,
+   "rate": 1661.0
+  }
+ ],
+ "rtt_theory_corrected": 90.05888888888889,
+ "capacity_theory_6pax": 719.5291969452087,
+ "capacity_theory_12pax_full": 1212.8144073700519,
+ "t_v_corrected": 2.301111111111111
+}
