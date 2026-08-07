@@ -19,9 +19,13 @@ NF = int(os.environ.get("N_FLOORS", "10"))
 OBS_ETA = os.environ.get("OBS_ETA", "1") == "1"
 CAR_DIST = os.environ.get("CAR_DIST", "1") == "1"
 
+MAX_TIME = float(os.environ.get("MAX_TIME", "43200"))
+CUT_TIME = float(os.environ.get("CUT_TIME", "43200"))
+TEACHER = os.environ.get("TEACHER", "sdeta")
+
 def make_env(n_floors=NF, obs_eta=OBS_ETA):
     return ElevatorEnv(config={"num_floors": n_floors, "num_elevators": 3, "max_load_kg": 900,
-                               "max_total_time": 43200.0, "max_dt": 30.0, "reward_scale": 0.01,
+                               "max_total_time": MAX_TIME, "max_dt": 30.0, "reward_scale": 0.01,
                                "obs_car_calls_dist": CAR_DIST, "obs_eta": obs_eta,
                                "door_open_time": 3.0, "door_close_time": 3.0,
                                "boarding_time_per_pax": 0.8, "alighting_time_per_pax": 0.6,
@@ -47,15 +51,40 @@ def gen_events(seed, scale=3.2, n_floors=NF, train_mode="group"):
                                            schedule=DAILY_SCHEDULE_12H, max_events=MAX_EVENTS)[0]
     return _adapt_gen_events(np.array(raw), train_mode=train_mode)
 
+def _get_ppo_teacher():
+    if not hasattr(_get_ppo_teacher, "model"):
+        import torch as _torch
+        _ck = _torch.load("checkpoints/probe_8x_pponoaux_s42/ppo_elevator_best.pt",
+                          map_location="cuda", weights_only=False)
+        _sd = _ck.get("policy_state", _ck)
+        _m = GRUSharedActorCritic(state_dim=_sd["encoder.weight_ih_l0"].shape[1], action_dim=3,
+                                  aux_prediction=False, num_dest_classes=10, use_layer_norm=True,
+                                  gru_hidden=256, gru_layers=2, gru_dropout=0.1,
+                                  actor_hidden=64, critic_hidden=64).to("cuda")
+        _m.load_state_dict(_sd, strict=False); _m.eval()
+        _get_ppo_teacher.model = _m
+    return _get_ppo_teacher.model
+
 def collect_demo(env, events, max_steps=40000):
     obs, _ = env.reset(options={"events": events})
     env._ep_cap = 300000
     obs_list, act_list = [], []
     done, steps = False, 0
+    if TEACHER == "ppo":
+        import torch as _torch
+        _t = _get_ppo_teacher()
+        _h = _t.get_initial_hidden(1, "cuda")
+        _dev = "cuda"
     while not done and steps < max_steps:
         if env.pending_calls:
-            c = env.pending_calls[0]
-            a = min(range(env.num_elevators), key=lambda k: _eta(env, k, c))
+            if TEACHER == "ppo":
+                ot = _torch.as_tensor(obs, dtype=_torch.float32, device=_dev).unsqueeze(0).unsqueeze(0)
+                with _torch.no_grad():
+                    a, _, _, _h, _ = _t.get_action(ot, _h, deterministic=True)
+                a = int(a.item())
+            else:
+                c = env.pending_calls[0]
+                a = min(range(env.num_elevators), key=lambda k: _eta(env, k, c))
             obs_list.append(obs.copy()); act_list.append(a)
         else:
             a = 0
@@ -103,7 +132,7 @@ def eval_seeds(model, dev="cpu", seeds=(9999, 10001, 10003), scale=3.2, n_floors
     return float(np.mean(rs)), float(np.std(rs))
 
 if __name__ == "__main__":
-    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    dev = "cuda" if (TEACHER != "ppo" and torch.cuda.is_available()) else "cpu"
     SEED = int(os.environ.get("SEED", "42"))
     torch.manual_seed(SEED); np.random.seed(SEED)
     OUT_TAG = os.environ.get("OUT_TAG", "bc_boost")
@@ -118,6 +147,8 @@ if __name__ == "__main__":
 
     def _collect_one(seed):
         ev = gen_events(seed, TRAIN_SCALE, train_mode=TRAIN_MODE)
+        if CUT_TIME < 43200:
+            ev = ev[ev[:, 2] <= CUT_TIME]
         env = make_env()
         return collect_demo(env, ev)
 
@@ -129,6 +160,9 @@ if __name__ == "__main__":
             if (i + 1) % 10 == 0:
                 print(f"collected {i+1}/{n_demo} demos (last {len(obs_arr)} decisions)", flush=True)
     print(f"total demos: {n_demo}, decisions: {sum(len(o) for o, _ in demos)}, obs_dim={demos[0][0].shape[1]}", flush=True)
+
+    if TEACHER == "ppo":
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
 
     # state_dim inferred from actual obs (10F-eta=128, 10F-noeta=122, 20F=202, ...)
     state_dim = demos[0][0].shape[1]
