@@ -1,254 +1,210 @@
-# Learning to Dispatch Where Rules Collapse: Zone-Aware GRU–RL Elevator Group Control via Single-Call Decomposition Training
+# Behavior Cloning versus Reinforcement Learning for Elevator Group Control under Varying Traffic Density
 
-Reproducible artifact for the paper. This repository contains everything needed to
-reproduce the training, evaluation, statistics, and figures end-to-end. The paper
-manuscripts themselves are not distributed with this repository.
+Reproducible artifact for the manuscript submitted to *Engineering Applications of
+Artificial Intelligence*. This repository contains everything needed to reproduce the
+training, evaluation, statistics, and figures end-to-end. The manuscript itself is not
+distributed with this repository (double-anonymized review).
 
-**Protocol in one line:** train PPO on *single-passenger hall calls* (dense sequence,
-learnable auxiliary signal), evaluate on *real passenger group sizes* (1–10 pax per
-call, mean 3.71, calibrated from a real elevator traffic dataset).
+**Protocol in one line:** compare a 30-minute supervised clone (BC) and a 3-hour
+from-scratch PPO policy against classical rule-based dispatch across a calibrated
+density spectrum (4x / 8x / 12x the Al-Sharif base arrival rate), on held-out 12-hour
+episodes with real passenger group sizes (1–10 pax per call, mean 3.71, calibrated
+from a public elevator traffic dataset).
 
 ---
 
 ## 1. Headline Results
 
-At **2.5× peak arrival rates, passenger-count-aligned** (the regime where rule-based
-dispatch collapses), 12-hour episodes, real group sizes, 3 seeds × 12 held-out episodes
-per agent (pooled n = 36):
+**Transition density 8x** (nine held-out seeds, mean ± SD of 12-hour episode reward;
+paired t-test vs. the SD-ETA rule on the same episodes):
 
-| Agent | Reward (mean ± SE) | Pax served | Wait (s) |
+| Agent | Reward | Mean wait (s) | p95 wait (s) | Paired t (vs. rule) |
+|---|---|---|---|---|
+| SD-nearest (distance) | −51.5 ± 22.8 | 34.3 | — | — |
+| SD-ETA (teacher rule) | −38.4 ± 30.0 | 32.0 | 77.9 | — |
+| **BC** (clone, e20, 30 min) | **−8.5 ± 33.0** | 27.2 | 72.1 | t = 3.52, **p = 0.008** |
+| **PPO from scratch** (3 h) | **−3.4 ± 45.2** | 26.1 | 68.3 | t = 2.63, **p = 0.030** |
+| PPO fine-tuned (lr 3e-5) | −9.4 ± 30.9 | — | — | — |
+
+BC and PPO are statistically indistinguishable from each other (p = 0.64): a 30-minute
+supervised clone matches a 3-hour RL policy at the transition density.
+
+**Density–reward profile** (rule / BC / PPO; 9 seeds at 8x, 3 seeds at 4x and 12x):
+
+| Rates | SD-ETA | BC | PPO |
 |---|---|---|---|
-| SD-nearest (rule) | −3,099.8 ± 444.1 | 445 | 17.1 |
-| SD-ETA (rule) | −2,417.7 ± 325.6 | 831 | 17.0 |
-| GRU+PPO-92 (no aux) | −1,429.5 ± 219.7 | 641 | 17.9 |
-| GRU+PPO-122 (no aux) | −1,389.9 ± 295.1 | 505 | 17.9 |
-| Zone-Aux-92 (aux w/o car-call dist) | −2,153.5 ± 173.8 | 870 | 20.0 |
-| MIX | −1,056.7 ± 173.2 | 580 | 17.7 |
-| **Zone-Aux (proposed)** | **−792.9 ± 59.8** | ~495 | 17.0 |
+| 4x (comfort) | +54.3 ± 1.2 | +54.0 ± 1.2 | +49.0 ± 2.9 (over-intervenes, p = 0.021) |
+| 8x (transition) | −38.4 ± 30.0 | **−8.5 ± 33.0** | **−3.4 ± 45.2** |
+| 12x (overload) | −1188 ± 154 | −1180 ± 72 | −1231 ± 50 (indistinguishable) |
 
-**Pooled statistics vs. baselines** (Welch t-test, Cohen's d as in `scripts/pool_stats.py`):
+The common claim that RL's value concentrates at extreme overload is **not** reproduced:
+with a correctly calibrated demand model, RL's value sits in the transition band where
+the rule is stressed but the return signal is still learnable.
 
-| Comparison | t | p | Cohen's d |
-|---|---|---|---|
-| vs SD-ETA | 4.908 | 3.84×10⁻⁴ | 2.02 |
-| vs SD-nearest | 5.148 | 2.85×10⁻⁴ | 2.15 |
-| vs GRU+PPO-92 | 2.80 | 0.016 | 1.11 |
-
-**20-floor generalization** (trained on 10F, evaluated on 20F, n = 36):
-
-| Agent | Reward (mean ± SE) | vs SD-ETA |
-|---|---|---|
-| **Zone-Aux (20F)** | **−1,322.9 ± 122.0** | t=3.54, p=0.0037, d=1.40 |
-| SD-ETA (20F) | −2,895.4 ± 427.1 | — |
-| SD-nearest (20F) | −3,494.2 ± 403.2 | t=5.15, p=1.8×10⁻⁴, d=2.15 |
+**Policy distillation** (BC of PPO, 30 min): −5.8 ± 40.9 vs. PPO teacher −3.4 ± 45.2,
+p = 0.80 — 3 hours of PPO distilled into 30 minutes of supervised cloning without loss.
 
 **Key findings reproduced by this repo:**
-1. **RL value lives in the rule-collapse regime** — rules are competitive at 1.5–2.0×,
-   collapse at 2.5×+ (the density region where the paper's evaluation is run).
-2. **Single-call decomposition training** — decomposing each real group call into
-   single-passenger calls keeps the training sequence dense (auxiliary signal learnable,
-   event accuracy 0.58→0.73) while being exactly passenger-count-equivalent to the
-   deployment distribution. Training on real group calls directly is infeasible
-   (sparse auxiliary signal ≈ 0.5 accuracy; misaligned rates overload the system 8.2×).
-3. **Feature–auxiliary synergy** — the car-call distribution encoding is the *necessary
-   carrier* for the zone next-event auxiliary head: with 92-dim obs the aux head is
-   harmful (−2,154), with 122-dim obs (car-call distribution) both components synergize
-   (−793).
-4. **20-floor transfer** — the zone OD prior stays predictable (0.545 vs 0.333 chance),
-   and the trained agent generalizes with a significant margin over rules.
-5. **Negative results (documented, not paper claims)** — burst-expansion training
-   (0.1 s offsets), group training (aligned & unaligned), mixed-density curricula,
-   and the old split-architecture (type: `gru` with skip-connected dest head) all
-   underperform the final recipe. See §7.
+1. **Density regime determines everything** — at 4x all policies are near-optimal; at
+   8x both learned policies beat the rule (p = 0.008 / 0.030); at 12x all methods
+   collapse to indistinguishable large-negative rewards.
+2. **Match-reward nonlinearity** — raising the clone's teacher-match from 93.6% to
+   99.3% (20 supervised epochs) improves held-out reward ~7x; below ~99% match the
+   clone's reward degrades steeply.
+3. **Dual critical carriers** — the exact-ETA features and the car-call distribution
+   are both necessary (removing either degrades reward ~6x: no-ETA −50.4, p = 0.044;
+   no-car-call −47.5, p = 0.042).
+4. **Fine-tuning instability** — PPO fine-tuning of an under-trained clone (93.6%
+   match) diverges monotonically (value function fits the near-optimal policy,
+   advantage degenerates to noise); fine-tuning a well-trained clone is stable but
+   offers no gain.
+5. **Cross-density robustness** — BC trained at 8x stays robust at 4x and 12x, while
+   PPO over-intervenes at 4x (trained at 8x, it keeps "busy" behavior at low density).
+6. **20-floor transfer** — the BC pipeline transfers with positive reward at 4x
+   (+15.0 ± 14.1).
+7. **Teacher choice matters less than protocol** — cloning the SD-ETA rule or cloning
+   PPO yields indistinguishable reward (p = 0.61); the bottleneck is clonability, not
+   the teacher.
 
 ---
 
-## 2. The Final Protocol (why these numbers)
+## 2. Protocol
 
-**Training** (`train_train_mode: single`):
-- 12 h daily schedule, 7 segments (up_peak/interfloor/lunch/interfloor/down_peak/off_peak/interfloor),
-  arrival rates ×2.0 → ~219 calls/h.
-- Each call carries 1 passenger (`_adapt_gen_events` col 3 = 1.0). This is the *single-call
-  decomposition* of the real group distribution: 219 pax/h is exactly the pax rate of the
-  deployment scenario (rate ÷ mean group size 3.71, then re-multiplied by group members).
-- PPO (GRU shared encoder, 256×2, seq_len 32), 8 parallel envs, rollout 32 768,
-  60 epochs, early stop patience 6, reward scale 0.01 (12 h × ~1400 events),
-  `normalize_rewards: false`, `normalize_advantage: true`.
-- Auxiliary head: **next-event zone prediction** (3 zones), λ = 0.3, label from
-  `info["next_event_zone"]` — *not* destination prediction (hall-call-only setting:
-  destinations are physically unavailable at decision time).
+**Training — BC** (`scripts/bc_boost.py`):
+- 40 teacher episodes (seeds 2000 + i·13, disjoint from all evaluation seeds),
+  group event stream at 8x (SCALE = 3.2; 1–10 pax per call, mean 3.71), 12 h each
+  (112,664 decision states).
+- Chunked cross-entropy over 64-step sequences, Adam lr 3e-4, 50 epochs;
+  checkpoint selected at epoch 20 (generalization sweet spot). ~30 minutes on one GPU.
 
-**Validation** (`val_train_mode: single` by default):
-- Same single-call decomposition, 1 400-event cap, fixed held-out seeds, every 5 epochs.
+**Training — PPO** (`src/train.py`, `configs/config_gru_shared_event_d8x_noaux.yaml`):
+- Shared GRU (2×256), actor + critic heads, no auxiliary objectives.
+- Single-passenger decomposition at 8x (dense sequence; BC vs PPO protocol comparison
+  shows no significant effect of the decomposition, −10.6 vs −8.5, p = 0.61), 60 epochs,
+  8 parallel envs, rollout 32768, reward scale 0.01. ~3 hours on one GPU.
+- `configs/config_gru_shared_event_d8x_noaux_group.yaml` is the group-arrival variant
+  used to verify the training-distribution question.
 
-**Independent evaluation** (`scripts/eval_group_independent.py`):
-- Real group sizes 1–10 (weights `[0.157, 0.130, 0.163, 0.233, 0.143, 0.110, 0.027, 0.023, 0.010, 0.003]`,
-  mean 3.71 — calibrated from `elevator_traffic_dataset.csv`), arrival rates ÷3.71 then ×2.5
-  → 292 pax/h.
-- 12 held-out episodes × 3 seeds, deterministic greedy policy, GRU hidden state reset per episode.
-- Rule baselines: SD-nearest (shortest-distance) and SD-ETA (shortest expected arrival time).
+**Independent evaluation** (nine held-out seeds 9999, 10001, ..., 10015):
+- 12-hour episodes, real group arrivals at 8x (SCALE = 3.2), deterministic greedy,
+  GRU hidden state reset per episode.
+- Rule baselines: SD-nearest, SD-ETA; zoning baseline: static sectoring (3 zones).
+- Service metrics: mean wait, p95 wait, energy (kinematic model).
 
-**Density check:** x2.5 aligned = 292 pax/h vs. physical capacity ~1 440 pax/12 h (3 cars)
-— a hard stress test, but *not* the 8.2× overload of unaligned group training.
+**Density scan:** SCALE 1.6 = 4x, 3.2 = 8x, 4.8 = 12x.
+
+**Robustness probes (reviewer-driven):**
+- `results/wcorr0_9seed.json` — evaluation with the assignment-agreement bonus
+  disabled (w_corr = 0): conclusions unchanged (BC −9.8, PPO −4.2, rule −39.7).
+- `results/eta_noise_9seed.json` — ±10/20% multiplicative noise on exact-ETA features:
+  BC −8.5 → −16.8, PPO −3.4 → +2.1, still far above the noise-free rule (−38.4).
+- `results/sectoring_eval.json` — static sectoring collapses (−3,283 at 8x) from
+  lobby-zone saturation.
+- `results/wait_percentiles_8x.json` — mean/median/p90/p95 wait over 95,566 passengers.
 
 ---
 
 ## 3. Quick Start
 
 ```bash
-# 1. Environment (Python ≥ 3.12)
+# 1. Environment (Python >= 3.11)
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt        # or: uv sync
 
-# 2. Train the proposed agent (3 seeds, ~1.2 h each on an RTX 4060-class GPU)
-python src/train.py --config configs/config_gru_shared_daux_s360.yaml --seed 42 \
-  --epochs 60 --checkpoint-dir checkpoints/zoneaux_s42 --swanlab-project eet-paper
-python src/train.py --config configs/config_gru_shared_daux_s360.yaml --seed 360 \
-  --epochs 60 --checkpoint-dir checkpoints/zoneaux_s360 --swanlab-project eet-paper
-python src/train.py --config configs/config_gru_shared_daux_s360.yaml --seed 712 \
-  --epochs 60 --checkpoint-dir checkpoints/zoneaux_s712 --swanlab-project eet-paper
-# (config_gru_shared_daux_s360.yaml and _s712.yaml differ only by seed-dependent
-#  augmentation seeds; either reproduces the same architecture & protocol)
+# 2. Train the BC clone (~30 min on an RTX 4060-class GPU)
+TRAIN_MODE=group SCALE=3.2 N_DEMO=40 EPOCHS=50 OUT_TAG=bc_boost SEED=42 \
+  .venv/bin/python scripts/bc_boost.py
 
-# 3. Independent evaluation under real group sizes
-python scripts/eval_group_independent.py --ckpt checkpoints/zoneaux_s42 --tag zoneaux_s42
-python scripts/eval_group_independent.py --ckpt checkpoints/zoneaux_s360 --tag zoneaux_s360
-python scripts/eval_group_independent.py --ckpt checkpoints/zoneaux_s712 --tag zoneaux_s712
-python scripts/eval_group_independent.py --sd-eta
-python scripts/eval_group_independent.py --sd-nearest
+# 3. Train PPO from scratch (~3 h)
+.venv/bin/python src/train.py --config configs/config_gru_shared_event_d8x_noaux.yaml \
+  --seed 42 --epochs 60 --checkpoint-dir checkpoints/ppo_noaux_s42
 
-# 4. Statistics (Welch t + Cohen's d — exactly the paper numbers)
-python scripts/pool_stats.py --npy results --proposed zoneaux_s42_main zoneaux_s360 zoneaux_s712 --sd raw_sd_eta.npy
-python scripts/pool_stats.py --npy results --proposed zoneaux_s42_main zoneaux_s360 zoneaux_s712 --sd raw_sd_nearest.npy
+# 4. Independent evaluation under real group arrivals (9 held-out seeds)
+.venv/bin/python scripts/eval_matrix.py
 
-# 5. Figures (IEEE style, white background, PDF vector)
-python scripts/make_figures.py
+# 5. Statistics (paired t-tests, exactly the paper numbers)
+.venv/bin/python scripts/eval_significance.py
 
+# 6. Figures (IEEE style, PDF vector)
+.venv/bin/python scripts/make_figures.py
 ```
 
 ---
 
-## 4. Full Reproduction Steps (paper numbers, step by step)
-
-### 4.1 Generate the training set
-`src/train.py` builds episodes on the fly from `src/traffic/` (DAILY_SCHEDULE_12H,
-arrival rates, OD matrix, `_adapt_gen_events` with `train_mode`). No external data
-files are required for training.
-
-### 4.2 Train the 5 agents in the comparison table
-| Agent | Config | Notes |
-|---|---|---|
-| Zone-Aux (proposed) | `configs/config_gru_shared_daux_s360.yaml` | 122-dim obs + zone aux, λ=0.3 |
-| GRU+PPO-92 | `configs/config_gru_noaux.yaml` | 92-dim, no aux head |
-| GRU+PPO-122 | `configs/config_gru_shared_event_d.yaml` | 122-dim, no aux head |
-| Zone-Aux-92 | remove car-call distribution from obs (see §4.4) | ablation |
-| MIX | train with aux λ=0.3 + reward-pred/val-replay off, obs 122 | ablated recipe |
-
-Run each with seeds 42(The Universe Final Answer), 360(Circle), 712(Luo Tianyi's birthday), each 60 epochs.
-
-### 4.3 Evaluate everything under group sizes
-`scripts/eval_group_independent.py` runs the fixed protocol (12 ep/seed, seeds 9999+i,
-GRU reset, deterministic). Outputs per-episode rewards; save them as
-`results/raw_<agent>.npy` (12 values per agent).
-
-### 4.4 Regenerate all result tables
-```bash
-python scripts/pool_stats.py          # per-seed + pooled Welch t, p, Cohen's d
-python scripts/od_prior.py            # zone OD priors (10F & 20F)
-```
-Tables 1–3 in the papers are produced by these scripts from `results/raw_*.npy`.
-The synergy ablation removes the car-call distribution channels from the observation
-(obs 122→92) while keeping the aux head.
-
-### 4.5 Reproduce every figure
-`scripts/make_figures.py` produces the IEEE-style figures (white background, Okabe-Ito
-palette, serif, PDF vector): training curves, density profile, main results, synergy,
-OD prior. The figure files under `paper_access/figs/` and `paper_csmag/figs/` are the
-paper-embedded versions.
-
-### 4.6 (paper manuscripts)
-The paper manuscripts (IEEE conference / IEEE Access / IEEE Intelligent Systems
-versions) are not distributed with this repository; they compile with **0 errors,
-0 undefined references** from their own LaTeX sources.
-
----
-
-## 5. Repository Layout
+## 4. Repository Layout
 
 ```
-configs/        YAML configs: final recipe, ablations, 20F, rejected designs
-src/            train.py (PPO loop, _adapt_gen_events 3-mode), env/ (elevator_env with
-                n_pax & capacity), traffic/ (generator, OD matrix, passenger_profile),
-                models/ (gru_ppo GRUActorCritic), runner.py, zone_map.py
-scripts/        eval_group_independent.py (final protocol), eval_group_matrix.py,
-                eval_20f_group.py, eval_independent.py, eval_per_mode.py,
-                train_all.sh, od_prior.py, pool_stats.py, make_figures.py
-results/        raw per-episode npy (16 agents/scenarios), main_results.csv,
-                main_results_perseed.csv, synergy_ablation.csv, group_eval_matrix.csv,
-                adaptive_raw.csv, coverage/density/od-prior tables
-figs_ieee/      IEEE-style figure sources (PDF vector)
-lib/            shared plotting/persistence helpers (no hard-coded paths)
+configs/        YAML configs: final PPO recipe (noaux), group variant, ablations, 20F
+src/            train.py (PPO loop, _adapt_gen_events 3-mode), env/ (elevator_env,
+                n_pax & capacity, exact-kinematics ETA), traffic/ (generator, OD matrix,
+                passenger_profile), models/ (gru_ppo GRUSharedActorCritic), zone_map.py
+scripts/        bc_boost.py (BC training/eval), eval_matrix.py, eval_significance.py,
+                eval_multi_metric.py, eval_finetune_window.py, cmp_actions.py,
+                eval_20f_group.py, pool_stats.py, make_figures.py
+results/        9-seed JSONs for every experiment (rule, bc, ppo, distillation,
+                ablations, density scans, reviewer robustness probes), raw npy legacy
+                (marked superseded), rtt_validation.json
+figs_ieee/      IEEE-style figure sources (PDF vector + PNG)
 LICENSE, README.md, README.zh-CN.md, requirements.txt
 ```
 
 ---
 
-## 6. Raw Data Reference (`results/`)
+## 5. Key Result Files (`results/`)
 
 | File | Contents |
 |---|---|
-| `raw_zoneaux_s42_main.npy` | proposed agent, seed 42 (12 eps) |
-| `raw_zoneaux_s360.npy` / `raw_zoneaux_s712.npy` | proposed agent, seeds 360/712 |
-| `raw_noaux92_s42.npy` / `raw_noaux122_s42.npy` | no-aux baselines, seed 42 |
-| `raw_eventaux92_s42.npy` | zone aux on 92-dim obs (harmful ablation) |
-| `raw_mixaux122_s42.npy` | MIX recipe |
-| `raw_sd_eta.npy` / `raw_sd_nearest.npy` | rule baselines |
-| `raw_zone20f_s{42,360,712}.npy` | 20F generalization |
-| `raw_20f_sd_eta.npy` / `raw_20f_sd_nearest.npy` | 20F rules |
-| `raw_group_aligned_s42.npy` / `raw_group_unaligned_s42.npy` | rejected group training |
-| `raw_burst2_s42.npy` | rejected burst-expansion training |
-| `raw_zoneaux_s42_legacy.npy` | old split-architecture (invalidated) |
-| `group_eval_matrix.csv` | every model's reward/pax/wait in one table |
-| `adaptive_raw.csv` | MIX ×3.0 per-episode (negative result) |
+| `rule_9seed.json` | SD-ETA rule, 9 seeds @ 8x |
+| `bc_boost_e20_9seed.json` | BC clone e20, 9 seeds @ 8x (−8.5 ± 33.0) |
+| `ppo_noaux_9seed.json` | pure PPO (−3.4 ± 45.2) and PPO+aux (+3.2 ± 46.1) |
+| `bc_ppot_9seed.json` | BC-of-PPO distillation (−5.8 ± 40.9) |
+| `bc_single_9seed.json` | single-trained BC (−10.6 ± 30.7) — protocol check |
+| `bc_density_eval.json` | BC + rule across 4x/8x/12x |
+| `ppo_noaux_density3.json` | PPO across 4x/8x/12x |
+| `bc_density_train_9seed.json` | training-density sensitivity |
+| `bc_nocar_9seed.json` / no-ETA curves | feature ablations |
+| `multi_metric_8x.json` / `multi_metric_noaux_8x.json` | wait/energy trade-off |
+| `significance_8x.json` | paired t-tests (BC t=3.517, PPO t=2.630) |
+| `wcorr0_9seed.json`, `eta_noise_9seed.json` | reviewer robustness probes |
+| `sectoring_eval.json`, `wait_percentiles_8x.json` | zoning baseline + service metrics |
+| `rtt_validation.json` | flow-level throughput validation vs classical RTT theory |
+| `raw_*.npy` | legacy zone-aux era per-episode arrays — **superseded** (see §6) |
 
 ---
 
-## 7. Experiment Lineage (what was tried and rejected — all reproducible)
+## 6. Experiment Lineage (what was tried and rejected — all reproducible)
 
-1. **Group training (aligned)** — train directly on real group calls at pax-aligned
-   rates: auxiliary signal too sparse (event_acc ≈ 0.51 ≈ prior) → −1,363, worse than
-   single-call training (−793).
-2. **Group training (unaligned)** — rates not divided by group size: 866 pax/h = 8.2×
-   overload → do-nothing local optimum → −4,285.
-3. **Burst expansion** — expand each group call into same-floor same-destination single
-   calls at 0.1 s offsets: keeps sequence density (event_acc 0.64, learnable) but the
-   policy learns capacity-conservative behavior (pax 145 vs 581 served) → −1,543.
-4. **Mixed-density curriculum** — in-envelope match, worse extrapolation at 3.0×.
-5. **Old split architecture** (`type: gru` in older configs) — separate actor/critic
-   encoders + skip-connected dest head reading time features instead of destinations
-   (obs 89-dim has no destination info) → invalidated; replaced by the shared GRU +
-   event-head (`type: gru_shared`).
-6. **reward_pred + value_replay auxiliaries** — turned OFF (λ=0.0) in the final recipe
-   (no benefit, extra cost).
+1. **Zone-aware auxiliary head (previous line of work, 2026-07)** — next-event zone
+   prediction aux on top of the shared GRU. Superseded: the auxiliary objective
+   provides no benefit over pure supervised cloning (BC+aux −30.7 vs pure BC −8.5 at
+   epoch 20, n = 9) and the auxiliary head was removed from the manuscript.
+   Configs `config_gru_shared_daux_*.yaml` and `raw_zoneaux_*.npy` document this line.
+2. **Group training (aligned/unaligned)** — training directly on group calls at
+   pax-aligned rates: sparse auxiliary signal; superseded by the current protocol.
+3. **Burst expansion** — decomposing group calls into 0.1 s-offset single calls:
+   capacity-conservative policy, worse reward.
+4. **Old split architecture** (`type: gru`) — separate actor/critic encoders +
+   skip-connected dest head reading time features instead of destinations: invalid
+   (obs has no destination info); replaced by the shared GRU (`type: gru_shared`).
+5. **reward_pred + value_replay auxiliaries** — no benefit, disabled.
 
-All of these can be reproduced with the configs in `configs/`
-(`config_gru_shared_daux_group.yaml`, `config_gru_shared_daux_burst.yaml`,
-`config_gru_shared_zone_hd.yaml`, ...) and the raw results are archived above.
+All rejected designs remain reproducible from the archived configs and raw arrays.
 
 ---
 
-## 8. Citation
+## 7. Citation
 
 ```bibtex
-@article{song2026zoneaware,
-  title={Learning to Dispatch Where Rules Collapse: Zone-Aware GRU--RL Elevator Group
-         Control via Single-Call Decomposition Training},
+@article{song2026bcvpprl,
+  title={Behavior cloning versus reinforcement learning for elevator group control
+         under varying traffic density},
   author={Song, Chenle},
-  journal={IEEE Access},
-  year={2026}
+  journal={Engineering Applications of Artificial Intelligence},
+  year={2026},
+  note={submitted}
 }
 ```
 
-## 9. License
+## 8. License
 
 MIT (see `LICENSE`).
