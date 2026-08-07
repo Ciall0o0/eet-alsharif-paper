@@ -25,7 +25,7 @@
    0.0
   ]
  },
- "ppo_scratch": {
+ "ppo_noaux": {
   "reward": [
    -3.382822869429989,
    45.15097084957381
@@ -49,8 +49,7 @@
   "empty_floors": [
    0.0,
    0.0
-  ],
-  "model": "ppo_noaux"
+  ]
  },
  "rule": {
   "reward": [

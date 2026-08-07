@@ -1,0 +1,5 @@
+Behavior cloning (30 min) matches PPO (3 h) at transition density 8x (p = 0.64).
+Density is decisive: rules near-optimal at 4x; all methods collapse at 12x.
+Teacher-match maps nonlinearly onto reward: 93.6% to 99.3% buys ~7x reward.
+Exact-ETA and car-call distribution are critical carriers (~6x degradation each).
+A PPO policy is distillable: a 30-min clone ties PPO itself (p = 0.80).
