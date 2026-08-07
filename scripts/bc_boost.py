@@ -40,12 +40,12 @@ def _eta(env, k, call):
                + el.door_open_time + el.door_close_time)
     return tt
 
-def gen_events(seed, scale=3.2, n_floors=NF):
+def gen_events(seed, scale=3.2, n_floors=NF, train_mode="group"):
     rates = {k: v * scale for k, v in RATES_25.items()}
     g = TrafficGenerator(n_floors=n_floors, seed=seed, schedule=DAILY_SCHEDULE_12H, arrival_rates=rates)
     raw = g.generate_episode_multi_segment(n_segments=1, seed_shift=seed + 7,
                                            schedule=DAILY_SCHEDULE_12H, max_events=MAX_EVENTS)[0]
-    return _adapt_gen_events(np.array(raw))
+    return _adapt_gen_events(np.array(raw), train_mode=train_mode)
 
 def collect_demo(env, events, max_steps=40000):
     obs, _ = env.reset(options={"events": events})
@@ -107,6 +107,7 @@ if __name__ == "__main__":
     SEED = int(os.environ.get("SEED", "42"))
     torch.manual_seed(SEED); np.random.seed(SEED)
     OUT_TAG = os.environ.get("OUT_TAG", "bc_boost")
+    TRAIN_MODE = os.environ.get("TRAIN_MODE", "group")
 
     # --- collect demos in parallel (pure-CPU env simulation) ---
     n_demo = int(os.environ.get("N_DEMO", "40"))
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     n_workers = min(int(os.environ.get("N_WORKERS", "8")), mp.cpu_count())
 
     def _collect_one(seed):
-        ev = gen_events(seed, 3.2)
+        ev = gen_events(seed, 3.2, train_mode=TRAIN_MODE)
         env = make_env()
         return collect_demo(env, ev)
 
