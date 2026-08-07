@@ -17,7 +17,7 @@ MAX_EVENTS = 20000
 SEQ = 64
 NF = int(os.environ.get("N_FLOORS", "10"))
 OBS_ETA = os.environ.get("OBS_ETA", "1") == "1"
-CAR_DIST = True
+CAR_DIST = os.environ.get("CAR_DIST", "1") == "1"
 
 def make_env(n_floors=NF, obs_eta=OBS_ETA):
     return ElevatorEnv(config={"num_floors": n_floors, "num_elevators": 3, "max_load_kg": 900,
@@ -114,8 +114,10 @@ if __name__ == "__main__":
     import multiprocessing as mp
     n_workers = min(int(os.environ.get("N_WORKERS", "8")), mp.cpu_count())
 
+    TRAIN_SCALE = float(os.environ.get("SCALE", "3.2"))
+
     def _collect_one(seed):
-        ev = gen_events(seed, 3.2, train_mode=TRAIN_MODE)
+        ev = gen_events(seed, TRAIN_SCALE, train_mode=TRAIN_MODE)
         env = make_env()
         return collect_demo(env, ev)
 
