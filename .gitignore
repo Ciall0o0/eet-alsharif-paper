@@ -28,3 +28,6 @@ Thumbs.db
 paper/
 paper_access/
 paper_csmag/
+
+# Deprecated experiments (kept locally, not distributed)
+archived/
