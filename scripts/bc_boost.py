@@ -22,6 +22,7 @@ CAR_DIST = os.environ.get("CAR_DIST", "1") == "1"
 MAX_TIME = float(os.environ.get("MAX_TIME", "43200"))
 CUT_TIME = float(os.environ.get("CUT_TIME", "43200"))
 TEACHER = os.environ.get("TEACHER", "sdeta")
+LB_LAMBDA = float(os.environ.get("LB_LAMBDA", "30"))
 
 def make_env(n_floors=NF, obs_eta=OBS_ETA):
     return ElevatorEnv(config={"num_floors": n_floors, "num_elevators": 3, "max_load_kg": 900,
@@ -82,6 +83,10 @@ def collect_demo(env, events, max_steps=40000):
                 with _torch.no_grad():
                     a, _, _, _h, _ = _t.get_action(ot, _h, deterministic=True)
                 a = int(a.item())
+            elif TEACHER == "lb":
+                c = env.pending_calls[0]
+                a = min(range(env.num_elevators),
+                        key=lambda k: _eta(env, k, c) + LB_LAMBDA * env.elevators[k].load_ratio)
             else:
                 c = env.pending_calls[0]
                 a = min(range(env.num_elevators), key=lambda k: _eta(env, k, c))
